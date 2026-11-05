@@ -45,6 +45,12 @@
       "title": "GitHub refresh (seconds)",
       "description": "How often to re-read GitHub maps.",
       "default": 45
+    },
+    "contextBudget": {
+      "type": "number",
+      "title": "Context budget per session (tokens)",
+      "description": "Where each session's context bar fills up and turns red. One ticket per session, under 200k tokens, is the wayfinder rule of thumb.",
+      "default": 200000
     }
   }
 }

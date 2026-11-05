@@ -37,7 +37,9 @@ test('draws ready, claimed and blocked tickets, and asks before starting one', a
   on('command.register', () => ({ value: { command: 'wayfinder-map' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   const clock = mock.clock(on, { now: Date.UTC(2026, 10, 4, 12) })
-  mock.store(on)
+  // Another tab running the mod holds 06 and has used 181k tokens.
+  mock.store(on, { 'peer:f4e2aa': { claims: ['/repo/.scratch/wayfinder/map.md|06'], tokens: 181_000, window: 200_000, at: 1 } })
+  on('session.usage', () => ({ value: { startedAt: 0, context: { tokens: 12_000, window: 200_000, percent: 6 }, rateLimits: [] } }))
   on('fs.exists', (_, e) => ({ value: e.path in FILES || isDir(e.path) }))
   on('fs.list', (_, e) => ({
     value: (DIRS[e.path ?? ''] ?? []).map(name => ({ name, kind: isDir(`${e.path}/${name}`) ? 'dir' : 'file', size: 10, mtimeMs: 1, isLink: false })),
@@ -49,6 +51,7 @@ test('draws ready, claimed and blocked tickets, and asks before starting one', a
     : { value: { exitCode: 1, stdout: '', stderr: 'no gh here', isStdoutTruncated: false, isStderrTruncated: false } }))
   on('prompt.submit', (_, e) => { prompts.push(e.text); return { text: e.text } })
   on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.measure', (_, e) => ({ changed: e.changed }))
 
   await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
   // Startup refresh runs unawaited; let it settle.
@@ -56,9 +59,22 @@ test('draws ready, claimed and blocked tickets, and asks before starting one', a
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /I4 submitted on Canvas/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /1 ready · 1 claimed · 1 blocked/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /WAYFINDER/ })).toBeDefined()
+  for (const n of [/^1 ▸$/, /^ *1 ◐$/, /^ *1 ⧗$/, /^ *✓ 1$/]) expect(await ui.find({ type: 'Text', text: n })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /P3 user-confirmed/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /fog: write-ups/ })).toBeDefined()
+
+  // Context bars: this session, then the tab holding 06 (past 60% of the budget).
+  expect(await ui.find({ type: 'Text', text: /Context/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^ +12k$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^ +181k$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /f4e/ })).toBeDefined()
+  await $.session.measure({ context: { tokens: 92_400, window: 200_000, percent: 46 }, rateLimits: [], changed: ['context'] })
+  expect(await ui.find({ type: 'Text', text: /^ +92k$/ })).toBeDefined()
+
+  await ui.press({ key: 'sel:06' })
+  expect(await ui.find({ type: 'Text', text: /13 Implement P1/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /also waits 07/ })).toBeDefined()
 
   await ui.press({ key: 'run:07' })
   expect(await ui.find({ type: 'Text', text: /Start 07 in a new iTerm tab\?/ })).toBeDefined()

@@ -185,6 +185,18 @@ export function unblocks(t: Ticket, all: readonly Ticket[]): Ticket[] {
   return all.filter(x => !x.closed && x.blockedBy.includes(t.id))
 }
 
+/**
+ * What closing `t` unblocks, for the detail line: the ticket to tackle next (one that becomes
+ * ready once `t` closes, else the first that still waits on something else), and how many more.
+ */
+export function nextUnblocked(t: Ticket, all: readonly Ticket[]): { next?: Ticket; alsoWaits: string[]; more: number } {
+  const rest = (x: Ticket) => openBlockers(x, all).filter(b => b !== t.id)
+  const byId = (a: Ticket, b: Ticket) => a.id.localeCompare(b.id, undefined, { numeric: true })
+  const u = unblocks(t, all).sort((a, b) => rest(a).length - rest(b).length || byId(a, b))
+  const next = u[0]
+  return { next, alsoWaits: next ? rest(next) : [], more: Math.max(0, u.length - 1) }
+}
+
 /** Ids that are ready now but were not ready before: the tickets a resolution just unblocked. */
 export function newlyReady(before: readonly Ticket[], after: readonly Ticket[]): string[] {
   const none = new Set<string>()
@@ -200,3 +212,60 @@ export const fit = (s: string, n: number) =>
 
 export const shellQuote = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`
 export const appleQuote = (s: string) => `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+
+/** Markdown emphasis, code and links reduced to their text: "**a** [b](c) `d`" → "a b d". */
+export const plainText = (s: string) =>
+  s.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/(\*\*|__)(.+?)\1/g, '$2')
+    .replace(/(^|[^\w*])[*_](\S(?:.*?\S)?)[*_](?=[^\w*]|$)/g, '$1$2')
+    .replace(/`([^`]*)`/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+/** Word-wrap to at most `max` lines of `width` cells; the last line ends in … when text is left over. */
+export function wrapLines(s: string, width: number, max: number): string[] {
+  const w = Math.max(2, width)
+  // Words longer than a line are split into line-sized pieces.
+  const words = s.split(' ').filter(Boolean).flatMap(x => x.match(new RegExp(`.{1,${w}}`, 'gu')) ?? [])
+  const lines: string[] = []
+  let k = 0
+  while (k < words.length && lines.length < max) {
+    let line = words[k++]!
+    while (k < words.length && line.length + 1 + words[k]!.length <= w) line += ' ' + words[k++]
+    lines.push(line)
+  }
+  if (k < words.length) {
+    const last = lines.pop() ?? ''
+    lines.push((last.length < w ? last : last.slice(0, w - 1).trimEnd()) + '…')
+  }
+  return lines
+}
+
+// ---------- context budget ----------
+
+/** 92_400 → "92k", 1_250_000 → "1.3M", undefined → "–". */
+export function fmtTokens(n: number | undefined): string {
+  if (n === undefined) return '–'
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1).replace(/\.0$/, '')}M`
+  if (n >= 1e3) return `${Math.round(n / 1e3)}k`
+  return String(n)
+}
+
+export type Level = 'ok' | 'warn' | 'over'
+
+/** How full a session is against the per-session budget: under 60% ok, under 100% warn, else over. */
+export function budgetLevel(tokens: number | undefined, budget: number): Level {
+  const f = (tokens ?? 0) / Math.max(1, budget)
+  return f >= 1 ? 'over' : f >= 0.6 ? 'warn' : 'ok'
+}
+
+const EIGHTHS = ' ▏▎▍▌▋▊▉'
+/** A bar `width` cells wide: filled with eighth-blocks for tokens/budget, the rest as the track. */
+export function budgetBar(tokens: number | undefined, budget: number, width: number): { fill: string; track: string } {
+  const w = Math.max(1, width)
+  const cells = Math.min(1, Math.max(0, (tokens ?? 0) / Math.max(1, budget))) * w
+  const whole = Math.floor(cells)
+  const part = Math.round((cells - whole) * 8)
+  const fill = '█'.repeat(whole) + (whole < w && part ? EIGHTHS[part] ?? '' : '')
+  return { fill, track: '░'.repeat(w - fill.length) }
+}

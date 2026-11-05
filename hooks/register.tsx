@@ -1,18 +1,23 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Flash, Flow, Launch, Ticket, WfMap } from '../types'
+import type { Ctx, Flash, Flow, Launch, Ticket, WfMap } from '../types'
 import {
+  budgetBar,
+  budgetLevel,
   fit,
+  fmtTokens,
   ghTicket,
   localId,
   newlyReady,
+  nextUnblocked,
   openBlockers,
   parseLocalTicket,
   parseMapBody,
+  plainText,
   statusOf,
   taskListNumbers,
-  unblocks,
+  wrapLines,
   type GhIssue,
   type Status,
 } from './tracker'
@@ -37,6 +42,8 @@ const mineA = atom({ plugin: 'wayfinder-sidebar', key: 'mine' } as const, [] as 
 const peersA = atom({ plugin: 'wayfinder-sidebar', key: 'peers' } as const, {} as Record<string, string>, { shape: 'peers-1' })
 const showDoneA = atom({ plugin: 'wayfinder-sidebar', key: 'showDone' } as const, false)
 const spinA = atom({ plugin: 'wayfinder-sidebar', key: 'spin' } as const, 0)
+const contextsA = atom({ plugin: 'wayfinder-sidebar', key: 'contexts' } as const, [] as Ctx[], { shape: 'contexts-1' })
+const selfCtxA = atom({ plugin: 'wayfinder-sidebar', key: 'selfCtx' } as const, null as { tokens?: number; window: number } | null, { shape: 'selfctx-1' })
 
 // Colors: Proschi's palette for the types, dark tints for the row chips.
 const COLOR = { grilling: '#ec4899', prototype: '#a855f7', research: '#3b82f6', task: '#f97316', unknown: '#8590a8' } as const
@@ -50,10 +57,13 @@ const FLASH_TINT = '#14532d'
 const BLUE = '#7aa7ff'
 const YELLOW = '#eab308'
 const BTN = '#2a3550'
+const BANNER = '#1c2540'
+const RED = '#ef4444'
+const LEVEL = { ok: GREEN, warn: YELLOW, over: RED } as const
 
-type Opts = { launcher: Launcher; editor: string; pollSeconds: number; githubSeconds: number }
+type Opts = { launcher: Launcher; editor: string; pollSeconds: number; githubSeconds: number; contextBudget: number }
 
-let opts: Opts = { launcher: 'iterm', editor: '', pollSeconds: 3, githubSeconds: 45 }
+let opts: Opts = { launcher: 'iterm', editor: '', pollSeconds: 3, githubSeconds: 45, contextBudget: 200_000 }
 
 function readOptions(options: unknown): Opts {
   const o = (options ?? {}) as Partial<Opts>
@@ -62,6 +72,7 @@ function readOptions(options: unknown): Opts {
     editor: typeof o.editor === 'string' ? o.editor.trim() : '',
     pollSeconds: typeof o.pollSeconds === 'number' && o.pollSeconds > 0 ? o.pollSeconds : 3,
     githubSeconds: typeof o.githubSeconds === 'number' && o.githubSeconds >= 10 ? o.githubSeconds : 45,
+    contextBudget: typeof o.contextBudget === 'number' && o.contextBudget >= 1000 ? o.contextBudget : 200_000,
   }
 }
 
@@ -192,23 +203,39 @@ async function refresh($: Dollar, opt: { github?: boolean } = {}) {
 
 // ---------- which tab holds which ticket ----------
 
+/** What each tab running the mod keeps in the shared store under `peer:<session id>`. */
+type PeerRecord = { claims: string[]; tokens?: number; window?: number; at?: number }
+
+const readPeer = (v: unknown): PeerRecord =>
+  Array.isArray(v) ? { claims: v as string[] } : ((v ?? { claims: [] }) as PeerRecord) // 0.1.0 stored a bare list
+
+async function publishSelf($: Dollar, claims: string[]) {
+  if (!sessionId) return
+  const self = await read($, selfCtxA)
+  const rec: PeerRecord = { claims, tokens: self?.tokens, window: self?.window, at: await $.clock.now() }
+  await $.store.set(`peer:${sessionId}`, rec)
+}
+
 async function syncPeers($: Dollar, maps: WfMap[]) {
   const mine = await read($, mineA)
   const open = new Set<string>()
   for (const m of maps) for (const t of m.tickets) if (t.assignee && !t.closed) open.add(`${m.key}|${t.id}`)
   const kept = mine.filter(k => open.has(k))
   if (kept.length !== mine.length) await update($, mineA, () => kept)
-  if (sessionId) await $.store.set(`peer:${sessionId}`, kept)
+  await publishSelf($, kept)
   const labels: Record<string, string> = {}
+  const contexts: Ctx[] = []
   for (const key of await $.store.keys()) {
     if (!key.startsWith('peer:') || key === `peer:${sessionId}`) continue
-    const claims = (await $.store.get(key)) as string[] | undefined
+    const rec = readPeer(await $.store.get(key))
     const sid = key.slice(5)
-    const live = (claims ?? []).filter(k => open.has(k))
+    const live = rec.claims.filter(k => open.has(k))
     if (!live.length) { await $.store.delete(key); continue }
     for (const k of live) labels[k] = sid.slice(0, 3)
+    if (rec.window) contexts.push({ who: sid.slice(0, 3), keys: live, tokens: rec.tokens, window: rec.window, at: rec.at ?? 0 })
   }
   await update($, peersA, () => labels)
+  await update($, contextsA, () => contexts)
 }
 
 async function noteClaim($: Dollar, mapKey: string, id: string) {
@@ -416,7 +443,17 @@ export const register: Register = (on, options) => {
     }
     await $.command.register({ name: 'wayfinder-map', description: 'Show the wayfinder map sidebar', argumentHint: '[refresh]' })
     $.clock.every(TICK_MS, () => { void onTick($) })
+    void $.session.usage().then(u => update($, selfCtxA, () => ({ tokens: u.context.tokens, window: u.context.window }))).catch(() => undefined)
     void startup($)
+    return next(e)
+  })
+
+  // This session's context fill, for the budget bars: kept here and shared with the other tabs.
+  on('session.measure', async ($, e, next) => {
+    if (e.changed.includes('context')) {
+      await update($, selfCtxA, () => ({ tokens: e.context.tokens, window: e.context.window }))
+      await publishSelf($, await read($, mineA))
+    }
     return next(e)
   })
 
@@ -454,6 +491,8 @@ export const register: Register = (on, options) => {
     const mine = await read($, mineA)
     const peers = await read($, peersA)
     const showDone = await read($, showDoneA)
+    const contexts = await read($, contextsA)
+    const selfCtx = await read($, selfCtxA)
     const spin = SPIN[(await read($, spinA)) % SPIN.length]
 
     if (!m) {
@@ -527,11 +566,17 @@ export const register: Register = (on, options) => {
       ]
       if (sel === t.id) {
         const b = openBlockers(t, m.tickets)
-        const u = unblocks(t, m.tickets).length
+        const nu = nextUnblocked(t, m.tickets)
+        const tail = nu.more ? ` +${nu.more} more` : ''
+        const also = nu.alsoWaits.length ? ` (also waits ${nu.alsoWaits.join(' ')})` : ''
+        const nextText = nu.next ? `${nu.next.id} ${fit(nu.next.title, Math.max(8, W - 2 - 'unblocks '.length - nu.next.id.length - 1 - also.length - tail.length)).trimEnd()}` : ''
         out.push(
           <Box key={`detail:${t.id}`} flexDirection="column" paddingLeft={2}>
             <Text color={TEXT} wrap="wrap">{t.title}</Text>
-            <Text dimColor>{`${t.hitl ? 'needs you' : 'agent alone'} · ${b.length ? 'waits ' + b.join(' ') : 'no blockers'} · unblocks ${u}`}</Text>
+            <Text dimColor>{`${t.hitl ? 'needs you' : 'agent alone'} · ${b.length ? 'waits ' + b.join(' ') : 'no blockers'}`}</Text>
+            {nu.next
+              ? <Text dimColor wrap="wrap">{'unblocks '}<Text color={COLOR[nu.next.type]}>{nextText}</Text>{also + tail}</Text>
+              : <Text dimColor>unblocks nothing</Text>}
             {t.warning ? <Text color={YELLOW}>{`? ${t.warning}`}</Text> : null}
           </Box>,
         )
@@ -592,6 +637,64 @@ export const register: Register = (on, options) => {
     const done = m.tickets.filter(t => t.closed)
     const sep = '─'.repeat(W)
 
+    // One bar per session on this map against the per-session budget: this one first, then the tabs holding tickets.
+    const contextSection = () => {
+      const idsOf = (keys: string[]) => keys.filter(k => k.startsWith(`${m.key}|`)).map(k => k.slice(m.key.length + 1))
+      const rows: { who: string; ids: string[]; tokens?: number; window: number }[] = []
+      if (selfCtx) rows.push({ who: 'you', ids: idsOf(mine), tokens: selfCtx.tokens, window: selfCtx.window })
+      for (const c of contexts) { const ids = idsOf(c.keys); if (ids.length) rows.push({ who: c.who, ids, tokens: c.tokens, window: c.window }) }
+      if (!rows.length) return null
+      const idsW = Math.min(8, Math.max(0, ...rows.map(r => r.ids.join(' ').length)))
+      const barW = Math.max(6, W - 2 - 3 - 1 - (idsW ? idsW + 1 : 0) - 1 - 5)
+      return (
+        <Box key="ctx" flexDirection="column">
+          <Text color={TEXT}>{'◔ Context '}<Text dimColor>{`· ${fmtTokens(opts.contextBudget)} a session`}</Text></Text>
+          {rows.map(r => {
+            const budget = Math.min(opts.contextBudget, r.window)
+            const level = budgetLevel(r.tokens, budget)
+            const bar = budgetBar(r.tokens, budget, barW)
+            return (
+              <Text key={`ctx:${r.who}`}>
+                <Text color={r.who === 'you' ? BLUE : YELLOW}>{`  ${r.who.padEnd(3)} `}</Text>
+                {idsW ? <Text dimColor>{fit(r.ids.join(' '), idsW) + ' '}</Text> : null}
+                <Text color={LEVEL[level]}>{bar.fill}</Text>
+                <Text color={BTN}>{bar.track}</Text>
+                <Text color={level === 'ok' ? DIM : LEVEL[level]} bold={level === 'over'}>{' ' + fmtTokens(r.tokens).padStart(5)}</Text>
+              </Text>
+            )
+          })}
+          <Text> </Text>
+        </Box>
+      )
+    }
+
+    // The top bar, drawn like a ticket row: brand on the left, counts on the right.
+    const banner = () => {
+      const counts: { text: string; color: string }[] = [
+        { text: `${count('ready')} ▸`, color: GREEN },
+        { text: `${count('claimed')} ◐`, color: BLUE },
+        { text: `${count('blocked')} ⧗`, color: DIM },
+        { text: `✓ ${done.length}`, color: DIM },
+      ]
+      const right = counts.map(c => c.text).join('  ') + ' '
+      const inner = W - 2
+      const brand = inner - right.length >= 13 ? ' ◈ WAYFINDER' : ' ◈'
+      const gap = Math.max(1, inner - brand.length - right.length)
+      return (
+        <Box key="banner" flexDirection="row">
+          <Text color={BANNER}>▐</Text>
+          <Text backgroundColor={BANNER} color={BLUE} bold>{' ◈'}</Text>
+          <Text backgroundColor={BANNER} color={TEXT} bold>{brand.slice(2)}</Text>
+          <Text backgroundColor={BANNER}>{' '.repeat(gap)}</Text>
+          {counts.map((c, i) => (
+            <Text key={`n:${i}`} backgroundColor={BANNER} color={c.color}>{(i ? '  ' : '') + c.text}</Text>
+          ))}
+          <Text backgroundColor={BANNER}> </Text>
+          <Text color={BANNER}>▌</Text>
+        </Box>
+      )
+    }
+
     return (
       <Box flexDirection="column">
         {maps.length > 1 ? (
@@ -601,12 +704,15 @@ export const register: Register = (on, options) => {
             ))}
           </Box>
         ) : null}
-        <Text color={TEXT} bold>{`◎ ${fit(m.destination || m.title, W - 2).trimEnd()}`}</Text>
-        <Text dimColor>{`  ${count('ready')} ready · ${count('claimed')} claimed · ${count('blocked')} blocked · ✓ ${done.length} done`}</Text>
+        {banner()}
+        {wrapLines(plainText(m.destination || m.title), W - 2, 2).map((l, i) => (
+          <Text key={`dest:${i}`} color={TEXT} bold={i === 0 || undefined}>{`${i ? ' ' : '◎'} ${l}`}</Text>
+        ))}
         {m.error ? <Text color={YELLOW} wrap="wrap">{`! ${m.error}`}</Text> : null}
         <Text dimColor>{sep}</Text>
         {open.length === 0 ? <Text color={GREEN}>Every ticket is resolved. The way is clear.</Text> : null}
         {body as never}
+        {contextSection()}
         {m.fog.length ? <Text dimColor>{`≋ fog: ${fit(m.fog[0] ?? '', W - 8).trimEnd()}${m.fog.length > 1 ? ` +${m.fog.length - 1}` : ''}`}</Text> : null}
         <Text dimColor>{sep}</Text>
         {showDone

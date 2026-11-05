@@ -50,6 +50,20 @@ export type Launch = { mapKey: string; id: string; at: number }
 
 export type Flash = { ids: string[]; until: number }
 
+/** One session's context fill, as published to the shared store by each tab running the mod. */
+export type Ctx = {
+  /** "you" for this session, else a short session id. */
+  who: string
+  /** Tickets it holds, as "<map key>|<ticket id>". */
+  keys: string[]
+  /** Input tokens of its last response; absent before its first. */
+  tokens?: number
+  /** Its model's context window. */
+  window: number
+  /** When it last reported. */
+  at: number
+}
+
 declare module 'claude-code' {
   interface PluginState {
     'wayfinder-sidebar': {
@@ -64,6 +78,8 @@ declare module 'claude-code' {
       peers: Shaped<Record<string, string>>
       showDone: boolean
       spin: number
+      contexts: Shaped<Ctx[]>
+      selfCtx: Shaped<{ tokens?: number; window: number } | null>
     }
   }
 }

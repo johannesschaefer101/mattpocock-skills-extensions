@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { localId, newlyReady, parseLocalTicket, parseMapBody, statusOf } from './tracker'
+import { budgetBar, budgetLevel, fmtTokens, localId, newlyReady, nextUnblocked, plainText, wrapLines, parseLocalTicket, parseMapBody, statusOf } from './tracker'
 import { effectiveLauncher, handoffFile, handoffRules, launchArgv, openArgv, sessionPrompt, shellCommand } from './launch'
 import type { WfMap } from '../types'
 
@@ -92,4 +92,47 @@ test('platform fallbacks', async () => {
   expect(openArgv('/r/t.md', '', 'Linux')).toEqual(['xdg-open', '/r/t.md'])
   expect(openArgv('/r/t.md', 'code -r', 'Linux')).toEqual(['code', '-r', '/r/t.md'])
   expect(openArgv('https://github.com/o/r/issues/1', 'code', 'Linux')).toEqual(['xdg-open', 'https://github.com/o/r/issues/1'])
+})
+
+test('next ticket a resolution unblocks', async () => {
+  const t = (id: string, blockedBy: string[], closed = false) =>
+    ({ id, title: `T${id}`, type: 'task' as const, hitl: false, closed, assignee: '', blockedBy })
+  const all = [t('06', []), t('07', []), t('12', ['06', '07']), t('13', ['06']), t('14', ['06']), t('15', ['06'], true)]
+  // 13 becomes ready once 06 closes; 12 still waits on 07; the closed 15 is not counted.
+  const r = nextUnblocked(all[0]!, all)
+  expect(r.next?.id).toBe('13')
+  expect(r.alsoWaits).toEqual([])
+  expect(r.more).toBe(2)
+  // When nothing becomes ready, name the first and what else it waits on.
+  const only = nextUnblocked(all[1]!, all)
+  expect(only.next?.id).toBe('12')
+  expect(only.alsoWaits).toEqual(['06'])
+  expect(only.more).toBe(0)
+  expect(nextUnblocked(all[4]!, all).next).toBe(undefined)
+})
+
+test('header text: markdown stripped, wrapped to two lines', async () => {
+  expect(plainText('A **re-frozen** protocol, see [notes](n.md) and `x`  _now_')).toBe('A re-frozen protocol, see notes and x now')
+  expect(plainText('snake_case_name stays')).toBe('snake_case_name stays')
+  expect(wrapLines('one two three', 20, 2)).toEqual(['one two three'])
+  expect(wrapLines('aaaa bbbb cccc dddd', 9, 2)).toEqual(['aaaa bbbb', 'cccc dddd'])
+  expect(wrapLines('aaaa bbbb cccc dddd eeee', 9, 2)).toEqual(['aaaa bbbb', 'cccc ddd…'])
+  expect(wrapLines('aaaa bbbb cc dd eeee', 9, 2)).toEqual(['aaaa bbbb', 'cc dd…'])
+  expect(wrapLines('abcdefghijklmnop', 5, 2)).toEqual(['abcde', 'fghi…'])
+  for (const l of wrapLines('A re-frozen experiment protocol after a prototype round (reopened 2026-10-22, ticket 14)', 30, 2)) expect(l.length <= 30).toBe(true)
+})
+
+test('context budget bar', async () => {
+  expect(fmtTokens(undefined)).toBe('–')
+  expect(fmtTokens(950)).toBe('950')
+  expect(fmtTokens(92_400)).toBe('92k')
+  expect(fmtTokens(1_000_000)).toBe('1M')
+  expect(fmtTokens(1_250_000)).toBe('1.3M')
+  expect(budgetLevel(100_000, 200_000)).toBe('ok')
+  expect(budgetLevel(150_000, 200_000)).toBe('warn')
+  expect(budgetLevel(200_000, 200_000)).toBe('over')
+  expect(budgetBar(0, 200_000, 10)).toEqual({ fill: '', track: '░░░░░░░░░░' })
+  expect(budgetBar(100_000, 200_000, 10)).toEqual({ fill: '█████', track: '░░░░░' })
+  expect(budgetBar(105_000, 200_000, 10)).toEqual({ fill: '█████▎', track: '░░░░' })
+  expect(budgetBar(900_000, 200_000, 10)).toEqual({ fill: '██████████', track: '' })
 })

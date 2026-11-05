@@ -19,8 +19,8 @@
 </div>
 
 ```
+▐ ◈ WAYFINDER               4 ▸  2 ◐  10 ⧗  ✓ 5 ▌
 ◎ I4 submitted on Canvas
-  4 ready · 2 claimed · 10 blocked · ✓ 5 done
 ──────────────────────────────────────────────────
 ▸ Ready 4
 ▐ grill  07 P3: user-confirmed paym…        md  ▶ ▌
@@ -30,12 +30,17 @@
 ▐ task   09 Implement identity & se…  ⠹ 4f2  md  ▶ ▌
 ⧗ Blocked 10
 ▐ task   13 Implement P1/P2 policy … 06 +2  md  ▶ ▌
+
+◔ Context · 200k a session
+  you      ███████▏░░░░░░░░░░░░░░░░░░░░░░░    92k
+  4f2 09   █████████████████████████▋░░░░░   181k
 ```
 
 - **See what can move.** Open tickets are grouped into Ready, Claimed and Blocked, and colored by type.
 - **Start work in one click.** `▶` opens a new terminal tab running `/wayfinder <map> <ticket>`.
 - **Keep context.** Before launching, this session can write a handoff note for the new one.
 - **Run several at once.** Pick a few ready tickets and start them together with one shared handoff.
+- **Keep sessions small.** A bar per session shows its context against a 200k budget, following the wayfinder rule of one ticket per session and under 200k tokens. Bars turn yellow at 60% and red when over.
 - **Stay in sync.** Every tab sees claims and resolutions from the others within seconds. Tickets flash when they become unblocked.
 
 It only reads your tracker. It never edits your tickets or your wayfinder, grilling or handoff skill files.
@@ -69,6 +74,7 @@ The sidebar opens on its own when the working directory has a map, and `/wayfind
 
 - **Type chip.** The word at the left is the ticket type (`grill`, `proto`, `rsrch`, `task`) in its color. A solid chip means the ticket needs you (HITL). Colored text on a dark chip means an agent can run it alone (AFK).
 - **Status.** Claimed tickets show a spinner and who holds them: `you` for this session, a short session id for another tab running this mod, or `tab` otherwise. Blocked tickets show the ids they wait on, colored by those tickets' types.
+- **Context.** One bar for this session (`you`), and one for each other tab running the mod that holds a ticket on this map, labelled with its ticket ids. Each tab reports its own figures after every turn.
 - **Footer.** The map's "Not yet specified" items and resolved count sit at the bottom. Press `r` to list resolved tickets.
 
 ### Buttons and keys
@@ -118,6 +124,7 @@ Change these in `/plugin` → wayfinder-sidebar → configure, or under `pluginC
 | `editor` | system opener | Command that opens a ticket file, such as `code`, `cursor` or `zed` |
 | `pollSeconds` | `3` | How often local files are checked |
 | `githubSeconds` | `45` | How often GitHub maps are re-read |
+| `contextBudget` | `200000` | Tokens per session where the context bar fills and turns red |
 
 The first launch into iTerm or Terminal makes macOS ask whether Claude Code may control that app.
 

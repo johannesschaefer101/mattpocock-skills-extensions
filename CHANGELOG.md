@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- Context bars: this session's context fill and that of each other tab holding a ticket, against a per-session budget (`contextBudget`, default 200k).
+
+### Changed
+- New banner bar at the top of the pane: ◈ WAYFINDER on the left, ready / claimed / blocked / done counts on the right.
+- The map destination wraps to two lines instead of being cut at one, and markdown such as `**bold**` is shown as plain text.
+- A selected ticket's details name the ticket it unblocks next (preferring one that becomes ready), with a count of the rest, instead of a bare count.
+
 ## [0.1.0]
 
 ### Added
