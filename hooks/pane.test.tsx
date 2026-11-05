@@ -1,0 +1,73 @@
+import { expect, mock, test } from 'claude-code/testing'
+
+// A fake repo with one local map, served through the fs hooks (tests have no real file system).
+const ROOT = '/repo'
+const FILES: Record<string, string> = {
+  '/repo/.scratch/wayfinder/map.md': '# Map: I4 Agent Security\n\n## Destination\n\nI4 submitted on Canvas.\n\n## Not yet specified\n\n- write-ups\n',
+  '/repo/.scratch/wayfinder/tickets/01-identity.md': '---\ntitle: Who is the user?\ntype: wayfinder:grilling\nstatus: closed\nassignee: claude\nblocked_by: []\n---\n',
+  '/repo/.scratch/wayfinder/tickets/06-p1-p2.md': '---\ntitle: P1 & P2 rules\ntype: wayfinder:grilling\nstatus: open\nassignee: claude\nblocked_by: [01-identity.md]\n---\n',
+  '/repo/.scratch/wayfinder/tickets/07-p3.md': '---\ntitle: P3 user-confirmed payment actions\ntype: wayfinder:grilling\nstatus: open\nassignee:\nblocked_by: [01-identity.md]\n---\n',
+  '/repo/.scratch/wayfinder/tickets/13-checks.md': '---\ntitle: Implement P1/P2 policy checks\ntype: wayfinder:task\nstatus: open\nassignee:\nblocked_by: [06-p1-p2.md, 07-p3.md]\n---\n',
+}
+const DIRS: Record<string, string[]> = {
+  '/repo/.scratch': ['wayfinder'],
+  '/repo/.scratch/wayfinder/tickets': ['01-identity.md', '06-p1-p2.md', '07-p3.md', '13-checks.md'],
+}
+const isDir = (p: string) => p in DIRS || p === '/repo/.scratch/wayfinder'
+
+const PANE = {
+  plugin: 'wayfinder-sidebar',
+  component: 'Pane',
+  requestId: 'wayfinder',
+  props: {
+    title: 'I4 Agent Security',
+    isFocused: true,
+    bodyColumns: 50,
+    placement: 'dock',
+    scroll: { offset: 0, bodyRows: 40 },
+    view: {},
+  },
+} as const
+
+test('draws ready, claimed and blocked tickets, and asks before starting one', async ($, on) => {
+  const prompts: string[] = []
+  on('session.root', () => ({ value: ROOT }))
+  on('session.id', () => ({ value: 'sess-abc' }))
+  on('env.get', (_, e) => ({ value: e.name === 'TMPDIR' ? '/tmp' : '/home' }))
+  on('command.register', () => ({ value: { command: 'wayfinder-map' } }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  const clock = mock.clock(on, { now: Date.UTC(2026, 10, 4, 12) })
+  mock.store(on)
+  on('fs.exists', (_, e) => ({ value: e.path in FILES || isDir(e.path) }))
+  on('fs.list', (_, e) => ({
+    value: (DIRS[e.path ?? ''] ?? []).map(name => ({ name, kind: isDir(`${e.path}/${name}`) ? 'dir' : 'file', size: 10, mtimeMs: 1, isLink: false })),
+  }))
+  on('fs.stat', () => ({ value: { kind: 'file', size: 10, mtimeMs: 1, isLink: false } }))
+  on('fs.read', (_, e) => (e.path in FILES ? { value: FILES[e.path]! } : { deny: 'missing' }))
+  on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: 'no gh here' } }))
+  on('prompt.submit', (_, e) => { prompts.push(e.text); return { text: e.text } })
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+
+  await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
+  // Startup refresh runs unawaited; let it settle.
+  await clock.advance(10)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /I4 submitted on Canvas/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /1 ready · 1 claimed · 1 blocked/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /P3 user-confirmed/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /fog: write-ups/ })).toBeDefined()
+
+  await ui.press({ key: 'run:07' })
+  expect(await ui.find({ type: 'Text', text: /Start 07 in a new iTerm tab\?/ })).toBeDefined()
+
+  await ui.press({ key: 'handoff' })
+  expect(prompts.length).toBe(1)
+  expect(prompts[0]).toContain('07 P3 user-confirmed payment actions')
+  expect(prompts[0]).toContain('/tmp/wayfinder-handoffs/i4-agent-security-07-')
+  expect(await ui.find({ type: 'Text', text: /writing the handoff/ })).toBeDefined()
+
+  await ui.press({ key: 'cancel' })
+  expect(await ui.find({ type: 'Text', text: /writing the handoff/ })).toBeUndefined()
+  await ui.unmount()
+})

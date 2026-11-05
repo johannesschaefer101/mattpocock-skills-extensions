@@ -1,0 +1,13 @@
+{
+  "name": "wayfinder-sidebar",
+  "description": "A Claude Code sidebar for wayfinder maps.",
+  "owner": {
+    "name": "Nicolas Smits"
+  },
+  "plugins": [
+    {
+      "name": "wayfinder-sidebar",
+      "source": "./"
+    }
+  ]
+}
