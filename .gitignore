@@ -2,3 +2,4 @@
 *.log
 .claude/
 .claude-plugin/types/
+demo/

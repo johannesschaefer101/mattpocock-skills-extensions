@@ -45,20 +45,20 @@ const spinA = atom({ plugin: 'wayfinder-sidebar', key: 'spin' } as const, 0)
 const contextsA = atom({ plugin: 'wayfinder-sidebar', key: 'contexts' } as const, [] as Ctx[], { shape: 'contexts-1' })
 const selfCtxA = atom({ plugin: 'wayfinder-sidebar', key: 'selfCtx' } as const, null as { tokens?: number; window: number } | null, { shape: 'selfctx-1' })
 
-// Colors: Proschi's palette for the types, dark tints for the row chips.
-const COLOR = { grilling: '#ec4899', prototype: '#a855f7', research: '#3b82f6', task: '#f97316', unknown: '#8590a8' } as const
-const TINT = { grilling: '#3a1a2d', prototype: '#2e1f45', research: '#172745', task: '#3a2212', unknown: '#242b3b' } as const
+// Colors: Tokyo Night (LazyVim). Row tints are each type color mixed 34% into the pane's grey (#262626).
+const COLOR = { grilling: '#f7768e', prototype: '#bb9af7', research: '#7dcfff', task: '#ff9e64', unknown: '#a9b1d6' } as const
+const TINT = { grilling: '#6d4149', prototype: '#594d6d', research: '#445f70', task: '#704f3b', unknown: '#535562' } as const
 const WORD = { grilling: 'grill', prototype: 'proto', research: 'rsrch', task: 'task', unknown: '?' } as const
-const INK = '#0b1020'
-const TEXT = '#dbe1ee'
-const DIM = '#7c869c'
-const GREEN = '#22c55e'
-const FLASH_TINT = '#14532d'
-const BLUE = '#7aa7ff'
-const YELLOW = '#eab308'
-const BTN = '#2a3550'
-const BANNER = '#1c2540'
-const RED = '#ef4444'
+const INK = '#16161e'
+const TEXT = '#c0caf5'
+const DIM = '#737aa2'
+const GREEN = '#9ece6a'
+const FLASH_TINT = '#5c7245'
+const BLUE = '#7aa2f7'
+const YELLOW = '#e0af68'
+const BTN = '#3b4261'
+const BANNER = '#292e42'
+const RED = '#db4b4b'
 const LEVEL = { ok: GREEN, warn: YELLOW, over: RED } as const
 
 type Opts = { launcher: Launcher; editor: string; pollSeconds: number; githubSeconds: number; contextBudget: number }
@@ -231,7 +231,7 @@ async function syncPeers($: Dollar, maps: WfMap[]) {
     const sid = key.slice(5)
     const live = rec.claims.filter(k => open.has(k))
     if (!live.length) { await $.store.delete(key); continue }
-    for (const k of live) labels[k] = sid.slice(0, 3)
+    for (const k of live) labels[k] = 'tab'
     if (rec.window) contexts.push({ who: sid.slice(0, 3), keys: live, tokens: rec.tokens, window: rec.window, at: rec.at ?? 0 })
   }
   await update($, peersA, () => labels)
@@ -479,7 +479,9 @@ export const register: Register = (on, options) => {
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text, Button } = $.ui.resolve(e)
-    const W = Math.max(36, e.props.bodyColumns)
+    // The pane is outlined in a bold DIM border, so content gets two fewer columns.
+    const OUTER = Math.max(36, e.props.bodyColumns)
+    const W = OUTER - 2
     const maps = await read($, mapsA)
     const activeKey = await read($, activeA)
     const m = maps.find(x => x.key === activeKey) ?? maps[0]
@@ -518,8 +520,15 @@ export const register: Register = (on, options) => {
       const s = st(t)
       if (s === 'claimed') {
         const k = `${m.key}|${t.id}`
-        const who = mine.includes(k) ? 'you' : peers[k] ?? (t.assignee === 'claude' || t.assignee === 'claimed' ? 'tab' : t.assignee.slice(0, 3))
-        return [{ text: `${spin} ${who}`.padStart(5).slice(-5), color: who === 'you' ? BLUE : YELLOW }]
+        if (mine.includes(k)) return [{ text: `${spin} you`, color: BLUE }]
+        // Another tab running the mod: how much of its context budget it has used.
+        const c = contexts.find(x => x.keys.includes(k))
+        if (c && c.tokens !== undefined) {
+          const used = fmtTokens(c.tokens)
+          return [{ text: (used.length >= 4 ? spin + used : `${spin} ${used}`).padStart(5), color: LEVEL[budgetLevel(c.tokens, Math.min(opts.contextBudget, c.window))] }]
+        }
+        const who = peers[k] ?? (t.assignee === 'claude' || t.assignee === 'claimed' ? 'tab' : t.assignee.slice(0, 3))
+        return [{ text: `${spin} ${who}`.padStart(5).slice(-5), color: YELLOW }]
       }
       if (s === 'launching') return [{ text: '↗ new', color: BLUE }]
       if (s === 'blocked') {
@@ -640,12 +649,28 @@ export const register: Register = (on, options) => {
     // One bar per session on this map against the per-session budget: this one first, then the tabs holding tickets.
     const contextSection = () => {
       const idsOf = (keys: string[]) => keys.filter(k => k.startsWith(`${m.key}|`)).map(k => k.slice(m.key.length + 1))
-      const rows: { who: string; ids: string[]; tokens?: number; window: number }[] = []
-      if (selfCtx) rows.push({ who: 'you', ids: idsOf(mine), tokens: selfCtx.tokens, window: selfCtx.window })
-      for (const c of contexts) { const ids = idsOf(c.keys); if (ids.length) rows.push({ who: c.who, ids, tokens: c.tokens, window: c.window }) }
+      const rows: { key: string; isYou: boolean; ids: string[]; tokens?: number; window: number }[] = []
+      if (selfCtx) rows.push({ key: 'you', isYou: true, ids: idsOf(mine), tokens: selfCtx.tokens, window: selfCtx.window })
+      for (const c of contexts) { const ids = idsOf(c.keys); if (ids.length) rows.push({ key: c.who, isYou: false, ids, tokens: c.tokens, window: c.window }) }
       if (!rows.length) return null
-      const idsW = Math.min(8, Math.max(0, ...rows.map(r => r.ids.join(' ').length)))
-      const barW = Math.max(6, W - 2 - 3 - 1 - (idsW ? idsW + 1 : 0) - 1 - 5)
+      // Each bar is labelled by the ticket its session holds; this session's also says "you".
+      const labW = Math.max(10, Math.min(22, Math.floor(W * 0.4)))
+      const barW = Math.max(6, W - 2 - labW - 1 - 5)
+      const label = (r: (typeof rows)[number]) => {
+        const t = m.tickets.find(x => x.id === r.ids[0])
+        const parts: { text: string; color?: string; dim?: boolean }[] = []
+        if (r.isYou) parts.push({ text: 'you', color: BLUE })
+        if (t) {
+          const more = r.ids.length > 1 ? ` +${r.ids.length - 1}` : ''
+          if (parts.length) parts.push({ text: ' ' })
+          parts.push({ text: t.id, color: COLOR[t.type] })
+          const used = parts.reduce((n, p) => n + p.text.length, 0) + 1 + more.length
+          parts.push({ text: ' ' + fit(t.title, Math.max(0, labW - used)).trimEnd() + more, dim: true })
+        }
+        const len = parts.reduce((n, p) => n + p.text.length, 0)
+        parts.push({ text: ' '.repeat(Math.max(0, labW - len)) })
+        return parts
+      }
       return (
         <Box key="ctx" flexDirection="column">
           <Text color={TEXT}>{'◔ Context '}<Text dimColor>{`· ${fmtTokens(opts.contextBudget)} a session`}</Text></Text>
@@ -654,12 +679,13 @@ export const register: Register = (on, options) => {
             const level = budgetLevel(r.tokens, budget)
             const bar = budgetBar(r.tokens, budget, barW)
             return (
-              <Text key={`ctx:${r.who}`}>
-                <Text color={r.who === 'you' ? BLUE : YELLOW}>{`  ${r.who.padEnd(3)} `}</Text>
-                {idsW ? <Text dimColor>{fit(r.ids.join(' '), idsW) + ' '}</Text> : null}
+              <Text key={`ctx:${r.key}`}>
+                {'  '}
+                {label(r).map((p, i) => <Text key={`l:${i}`} color={p.color} dimColor={p.dim}>{p.text}</Text>)}
+                {' '}
                 <Text color={LEVEL[level]}>{bar.fill}</Text>
                 <Text color={BTN}>{bar.track}</Text>
-                <Text color={level === 'ok' ? DIM : LEVEL[level]} bold={level === 'over'}>{' ' + fmtTokens(r.tokens).padStart(5)}</Text>
+                <Text color={level === 'ok' ? DIM : LEVEL[level]} bold={level === 'over'}>{' ' + fmtTokens(r.tokens).padStart(4)}</Text>
               </Text>
             )
           })}
@@ -695,8 +721,40 @@ export const register: Register = (on, options) => {
       )
     }
 
+    // Key hints sit in a bar pinned to the bottom of the docked pane: placed at the last rows the
+    // window shows, which the engine reports in `scroll` and asks again for on each scroll.
+    // `top` counts from inside the top border, and the bar stays above the bottom border.
+    const FOOT = 2
+    const docked = e.props.placement === 'dock'
+    const { offset, bodyRows } = e.props.scroll
+    const hint = (key: string, hotkey: string, label: string, onPress: () => unknown) => (
+      <Button key={key} plain dimColor hotkey={hotkey} label={label} onPress={onPress} />
+    )
+    const footer = (
+      <Box
+        key="footer"
+        flexDirection="column"
+        backgroundColor={BANNER}
+        paddingX={1}
+        width={W}
+        {...(docked ? { position: 'absolute' as const, left: 0, top: Math.max(0, offset + bodyRows - FOOT - 2) } : {})}
+      >
+        <Box flexDirection="row" columnGap={1}>
+          {hint('k-down', 'j', 'down', () => move($, 1))}
+          {hint('k-up', 'k', 'up', () => move($, -1))}
+          {hint('k-open', 'o', 'open', () => (sel ? openTicket($, sel) : undefined))}
+          {hint('k-refresh', 'g', 'refresh', () => refresh($, { github: true }))}
+        </Box>
+        <Box flexDirection="row" columnGap={1}>
+          {hint('k-start', 's', picked.length ? `start ${picked.length}` : 'start', () => startPressed($, sel))}
+          {hint('k-pick', 'x', 'pick', () => update($, pickedA, p => (!sel ? p : p.includes(sel) ? p.filter(x => x !== sel) : [...p, sel])))}
+          {hint('k-done', 'r', showDone ? 'hide done' : 'show done', () => update($, showDoneA, v => !v))}
+        </Box>
+      </Box>
+    )
+
     return (
-      <Box flexDirection="column">
+      <Box flexDirection="column" borderStyle="bold" borderColor={DIM} width={OUTER} {...(docked ? { minHeight: bodyRows, paddingBottom: FOOT } : {})}>
         {maps.length > 1 ? (
           <Box flexDirection="row" flexWrap="wrap" gap={1}>
             {maps.map(x => (
@@ -718,15 +776,7 @@ export const register: Register = (on, options) => {
         {showDone
           ? done.map(t => <Text key={`done:${t.id}`} dimColor>{`  ✓ ${t.id.padStart(idW)} ${fit(t.title, W - idW - 5).trimEnd()}`}</Text>)
           : <Text dimColor>{`✓ ${done.length} resolved`}</Text>}
-        <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
-          <Button key="k-down" plain hotkey="j" label="down" onPress={() => move($, 1)} />
-          <Button key="k-up" plain hotkey="k" label="up" onPress={() => move($, -1)} />
-          <Button key="k-open" plain hotkey="o" label="open" onPress={() => (sel ? openTicket($, sel) : undefined)} />
-          <Button key="k-start" plain hotkey="s" label={picked.length ? `start ${picked.length}` : 'start'} onPress={() => startPressed($, sel)} />
-          <Button key="k-pick" plain hotkey="x" label="pick" onPress={() => update($, pickedA, p => (!sel ? p : p.includes(sel) ? p.filter(x => x !== sel) : [...p, sel]))} />
-          <Button key="k-done" plain hotkey="r" label={showDone ? 'hide done' : 'show done'} onPress={() => update($, showDoneA, v => !v)} />
-          <Button key="k-refresh" plain hotkey="g" label="refresh" onPress={() => refresh($, { github: true })} />
-        </Box>
+        {footer}
       </Box>
     )
   })

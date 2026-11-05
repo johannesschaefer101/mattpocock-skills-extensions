@@ -66,11 +66,13 @@ test('draws ready, claimed and blocked tickets, and asks before starting one', a
 
   // Context bars: this session, then the tab holding 06 (past 60% of the budget).
   expect(await ui.find({ type: 'Text', text: /Context/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /^ +12k$/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /^ +181k$/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /f4e/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^ *12k$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^ *181k$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /P1 & P2/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /181k$/ })).toBeDefined() // on 06's row too
+  expect(await ui.find({ type: 'Text', text: /f4e/ })).toBeUndefined()
   await $.session.measure({ context: { tokens: 92_400, window: 200_000, percent: 46 }, rateLimits: [], changed: ['context'] })
-  expect(await ui.find({ type: 'Text', text: /^ +92k$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^ *92k$/ })).toBeDefined()
 
   await ui.press({ key: 'sel:06' })
   expect(await ui.find({ type: 'Text', text: /13 Implement P1/ })).toBeDefined()
@@ -88,4 +90,13 @@ test('draws ready, claimed and blocked tickets, and asks before starting one', a
   await ui.press({ key: 'cancel' })
   expect(await ui.find({ type: 'Text', text: /writing the handoff/ })).toBeUndefined()
   await ui.unmount()
+
+  // Key hints are pinned to the last two rows inside the pane's border, wherever it is scrolled to.
+  const scrolled = await $.ui.mount({ ...PANE, surface: 'terminal', props: { ...PANE.props, scroll: { offset: 12, bodyRows: 30 } } })
+  const foot = await scrolled.find({ key: 'footer' })
+  expect(foot?.props.position).toBe('absolute')
+  expect(foot?.props.top).toBe(38)
+  expect(foot?.props.width).toBe(48)
+  expect(await scrolled.find({ type: 'Button', key: 'k-refresh' })).toBeDefined()
+  await scrolled.unmount()
 })

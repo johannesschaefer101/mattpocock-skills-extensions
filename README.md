@@ -27,13 +27,13 @@
 ▐ task   10 Enforce bag allowance s…        md  ▶ ▌
 ◐ Claimed 2
 ▐ grill  06 P1 & P2: server-side co… ⠹ you  md  ▶ ▌
-▐ task   09 Implement identity & se…  ⠹ 4f2  md  ▶ ▌
+▐ task   09 Implement identity & se… ⠹181k  md  ▶ ▌
 ⧗ Blocked 10
 ▐ task   13 Implement P1/P2 policy … 06 +2  md  ▶ ▌
 
 ◔ Context · 200k a session
-  you      ███████▏░░░░░░░░░░░░░░░░░░░░░░░    92k
-  4f2 09   █████████████████████████▋░░░░░   181k
+  you 06 P1 & P2: serv…  ████████▏░░░░░░░░░░░  92k
+  09 Implement identi…   ██████████████████▉░ 181k
 ```
 
 - **See what can move.** Open tickets are grouped into Ready, Claimed and Blocked, and colored by type.
@@ -73,8 +73,8 @@ The sidebar opens on its own when the working directory has a map, and `/wayfind
 ### Rows
 
 - **Type chip.** The word at the left is the ticket type (`grill`, `proto`, `rsrch`, `task`) in its color. A solid chip means the ticket needs you (HITL). Colored text on a dark chip means an agent can run it alone (AFK).
-- **Status.** Claimed tickets show a spinner and who holds them: `you` for this session, a short session id for another tab running this mod, or `tab` otherwise. Blocked tickets show the ids they wait on, colored by those tickets' types.
-- **Context.** One bar for this session (`you`), and one for each other tab running the mod that holds a ticket on this map, labelled with its ticket ids. Each tab reports its own figures after every turn.
+- **Status.** Claimed tickets show a spinner and who holds them: `you` for this session, the context it has used (such as `181k`) for another tab running this mod, or `tab` otherwise. Blocked tickets show the ids they wait on, colored by those tickets' types.
+- **Context.** One bar for this session (`you`), and one for each other tab running the mod that holds a ticket on this map. Each bar is labelled with the ticket its session is working on. Each tab reports its own figures after every turn.
 - **Footer.** The map's "Not yet specified" items and resolved count sit at the bottom. Press `r` to list resolved tickets.
 
 ### Buttons and keys
