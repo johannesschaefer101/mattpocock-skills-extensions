@@ -3,8 +3,11 @@
   "version": "0.1.0",
   "description": "A sidebar of your wayfinder map's tickets: ready, claimed and blocked, with buttons to open a ticket or start a session on it (optionally with a handoff from this session).",
   "author": {
-    "name": "Nicolas Smits"
+    "name": "Nick Smits",
+    "url": "https://github.com/nicksmits1"
   },
+  "homepage": "https://github.com/nicksmits1/wayfinder-sidebar",
+  "repository": "https://github.com/nicksmits1/wayfinder-sidebar",
   "license": "MIT",
   "keywords": [
     "wayfinder",
@@ -17,7 +20,7 @@
     "launcher": {
       "type": "string",
       "title": "Where new sessions open",
-      "description": "iterm opens a new iTerm tab, terminal a new Terminal.app window, copy puts the command on the clipboard.",
+      "description": "iterm opens a new iTerm tab, terminal a new Terminal.app window (both macOS only), copy puts the command on the clipboard. Other systems always copy.",
       "options": [
         "iterm",
         "terminal",
@@ -28,7 +31,7 @@
     "editor": {
       "type": "string",
       "title": "Editor for ticket files",
-      "description": "Command that opens a ticket .md file, for example code, cursor or zed. Empty uses the system default (open).",
+      "description": "Command that opens a ticket .md file, for example code, cursor or zed. Empty uses the system opener (open on macOS, xdg-open on Linux).",
       "default": ""
     },
     "pollSeconds": {

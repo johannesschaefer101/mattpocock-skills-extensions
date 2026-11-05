@@ -5,6 +5,7 @@ import type { Flash, Flow, Launch, Ticket, WfMap } from '../types'
 import {
   fit,
   ghTicket,
+  localId,
   newlyReady,
   openBlockers,
   parseLocalTicket,
@@ -15,7 +16,7 @@ import {
   type GhIssue,
   type Status,
 } from './tracker'
-import { handoffFile, handoffPrompt, launchArgv, sessionPrompt, shellCommand, type Launcher } from './launch'
+import { effectiveLauncher, handoffFile, handoffPrompt, launchArgv, openArgv, sessionPrompt, shellCommand, type Launcher } from './launch'
 
 const P = 'wayfinder-sidebar'
 const PANE = 'wayfinder'
@@ -69,6 +70,7 @@ type Dollar = EngineInterface
 let root = ''
 let sessionId = ''
 let tmp = '/tmp'
+let platform = '' // `uname -s`: Darwin, Linux, …
 let skillText: string | undefined
 let ghRepo: string | null | undefined // undefined: not checked yet; null: none
 let lastGh = 0
@@ -78,7 +80,6 @@ let tick = 0
 const localSig = new Map<string, { sig: string; map: WfMap }>()
 
 // ---------- loading ----------
-
 
 async function loadLocal($: Dollar): Promise<WfMap[]> {
   const scratch = `${root}/.scratch`
@@ -102,7 +103,7 @@ async function loadLocal($: Dollar): Promise<WfMap[]> {
       for (const f of files.sort((a, b) => a.name.localeCompare(b.name))) {
         const path = `${ticketDir}/${f.name}`
         try { tickets.push(parseLocalTicket(f.name, await $.fs.read(path), path)) }
-        catch { tickets.push({ id: f.name.slice(0, 2), title: f.name, type: 'unknown', hitl: false, closed: false, assignee: '', blockedBy: [], path, warning: 'could not read the file' }) }
+        catch { tickets.push({ id: localId(f.name), title: f.name, type: 'unknown', hitl: false, closed: false, assignee: '', blockedBy: [], path, warning: 'could not read the file' }) }
       }
       const map: WfMap = { key: mapPath, tracker: 'local', relPath: `.scratch/${dir.name}/map.md`, ...header, tickets }
       localSig.set(mapPath, { sig, map })
@@ -248,7 +249,7 @@ async function launchSet($: Dollar): Promise<Set<string>> {
 }
 
 async function openPath($: Dollar, target: string) {
-  const argv = opts.editor && !target.startsWith('http') ? [...opts.editor.split(/\s+/), target] : ['open', target]
+  const argv = openArgv(target, opts.editor, platform)
   try {
     const r = await $.process.run(argv)
     if (r.exitCode !== 0) $.ui.toast(`Could not open ${target}: ${r.stderr.trim() || 'exit ' + r.exitCode}`)
@@ -308,17 +309,19 @@ async function launchAll($: Dollar, withHandoff: boolean) {
     return shellCommand(root, sessionPrompt(m, t, path))
   })
   let ok = 0
-  if (opts.launcher === 'copy') {
+  const launcher = effectiveLauncher(opts.launcher, platform)
+  if (launcher === 'copy') {
     const r = await $.ui.copy({ text: cmds.join('\n') })
-    $.ui.toast(r.isCopied ? `Copied ${cmds.length} launch command${cmds.length > 1 ? 's' : ''}.` : 'Could not copy the launch command.')
+    const why = opts.launcher === 'copy' ? '' : ` (${opts.launcher === 'iterm' ? 'iTerm' : 'Terminal'} launching is macOS only)`
+    $.ui.toast(r.isCopied ? `Copied ${cmds.length} launch command${cmds.length > 1 ? 's' : ''}${why}.` : 'Could not copy the launch command.')
     ok = r.isCopied ? cmds.length : 0
   } else {
     for (const cmd of cmds) {
-      const argv = launchArgv(opts.launcher, cmd)!
+      const argv = launchArgv(launcher, cmd)!
       try {
         const r = await $.process.run(argv, { timeoutMs: 20000 })
         if (r.exitCode === 0) ok++
-        else $.ui.toast(`Could not open a tab: ${r.stderr.trim().slice(0, 160)}. macOS may be asking to let Claude Code control ${opts.launcher === 'iterm' ? 'iTerm' : 'Terminal'}.`)
+        else $.ui.toast(`Could not open a tab: ${r.stderr.trim().slice(0, 160)}. macOS may be asking to let Claude Code control ${launcher === 'iterm' ? 'iTerm' : 'Terminal'}.`)
       } catch (err) { $.ui.toast(`Could not run osascript: ${String(err)}`) }
     }
     if (ok) $.ui.toast(`Started ${ok} session${ok > 1 ? 's' : ''}${path ? ' with the handoff' : ''}.`)
@@ -365,7 +368,7 @@ async function onTick($: Dollar) {
   // Only spin while something on screen spins.
   const m = await activeMap($)
   const spinning = flow?.stage === 'writing' || (m?.tickets.some(t => t.assignee && !t.closed) ?? false)
-  if (spinning && tick % 1 === 0) await update($, spinA, n => (n + 1) % 1000)
+  if (spinning) await update($, spinA, n => (n + 1) % 1000)
   if (tick % Math.max(1, Math.round((opts.pollSeconds * 1000) / TICK_MS)) === 0) await refresh($)
 }
 
@@ -373,7 +376,6 @@ function visibleOrder(m: WfMap, launching: Set<string>): string[] {
   const by = (s: Status) => m.tickets.filter(t => statusOf(t, m.tickets, launching) === s).map(t => t.id)
   return [...by('ready'), ...by('claimed'), ...by('launching'), ...by('blocked')]
 }
-
 
 async function afterToolCall($: Dollar, path: string, cmd: string) {
   const before = await read($, mapsA)
@@ -407,6 +409,7 @@ export const register: Register = (on, options) => {
     root = (await $.session.root().catch(() => e.cwd)) || e.cwd
     sessionId = await $.session.id().catch(() => '')
     tmp = (await $.env.get('TMPDIR')) || '/tmp'
+    try { platform = (await $.process.run(['uname', '-s'], { timeoutMs: 5000 })).stdout.trim() } catch { platform = '' }
     const home = await $.env.get('HOME')
     for (const p of [`${home}/.claude/skills/handoff/SKILL.md`, `${home}/.agents/skills/handoff/SKILL.md`]) {
       try { skillText = await $.fs.read(p); break } catch { /* not installed there */ }
@@ -538,7 +541,8 @@ export const register: Register = (on, options) => {
     }
 
     const strip = (f: Flow) => {
-      const where = opts.launcher === 'iterm' ? 'iTerm tab' : opts.launcher === 'terminal' ? 'Terminal window' : 'command (copied)'
+      const launcher = effectiveLauncher(opts.launcher, platform)
+      const where = launcher === 'iterm' ? 'iTerm tab' : launcher === 'terminal' ? 'Terminal window' : 'command (copied)'
       const what = f.ids.length > 1 ? `${f.ids.length} tickets (${f.ids.join(' ')}) in new ${where}s` : `${f.ids[0]} in a new ${where}`
       if (f.stage === 'ask') {
         return (

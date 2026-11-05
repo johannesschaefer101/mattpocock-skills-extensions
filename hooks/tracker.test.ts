@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { localId, newlyReady, parseLocalTicket, parseMapBody, statusOf } from './tracker'
-import { handoffFile, handoffRules, launchArgv, sessionPrompt, shellCommand } from './launch'
+import { effectiveLauncher, handoffFile, handoffRules, launchArgv, openArgv, sessionPrompt, shellCommand } from './launch'
 import type { WfMap } from '../types'
 
 const FRONT = `---
@@ -82,4 +82,14 @@ test('launch command and handoff path', async () => {
   expect(launchArgv('copy', 'x')).toBe(undefined)
   expect(launchArgv('iterm', 'say "hi"')?.join(' ')).toContain('write text "say \\"hi\\""')
   expect(handoffRules('---\nname: handoff\n---\nWrite it.\nSave to the temporary directory of the OS.\nRedact keys.')).toBe('Write it.\nRedact keys.')
+})
+
+test('platform fallbacks', async () => {
+  expect(effectiveLauncher('iterm', 'Darwin')).toBe('iterm')
+  expect(effectiveLauncher('terminal', 'Linux')).toBe('copy')
+  expect(effectiveLauncher('copy', 'Darwin')).toBe('copy')
+  expect(openArgv('/r/t.md', '', 'Darwin')).toEqual(['open', '/r/t.md'])
+  expect(openArgv('/r/t.md', '', 'Linux')).toEqual(['xdg-open', '/r/t.md'])
+  expect(openArgv('/r/t.md', 'code -r', 'Linux')).toEqual(['code', '-r', '/r/t.md'])
+  expect(openArgv('https://github.com/o/r/issues/1', 'code', 'Linux')).toEqual(['xdg-open', 'https://github.com/o/r/issues/1'])
 })

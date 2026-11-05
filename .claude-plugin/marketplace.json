@@ -2,12 +2,14 @@
   "name": "wayfinder-sidebar",
   "description": "A Claude Code sidebar for wayfinder maps.",
   "owner": {
-    "name": "Nicolas Smits"
+    "name": "Nick Smits",
+    "url": "https://github.com/nicksmits1"
   },
   "plugins": [
     {
       "name": "wayfinder-sidebar",
-      "source": "./"
+      "source": "./",
+      "description": "A sidebar of your wayfinder map's tickets, with one-click sessions and handoffs."
     }
   ]
 }

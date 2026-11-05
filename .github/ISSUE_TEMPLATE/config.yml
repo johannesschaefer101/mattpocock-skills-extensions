@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions about the wayfinder skill itself
+    url: https://github.com/mattpocock/skills
+    about: Map and ticket semantics come from Matt Pocock's skills repo.

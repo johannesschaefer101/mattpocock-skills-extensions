@@ -86,3 +86,17 @@ export function handoffFile(tmp: string, m: WfMap, ids: readonly string[], now: 
   const idPart = ids.map(i => i.replace('#', '')).join('-').slice(0, 40)
   return `${tmp.replace(/\/$/, '')}/wayfinder-handoffs/${slug}-${idPart}-${stamp}.md`
 }
+
+/** `uname -s` output: "Darwin" on macOS, "Linux" on Linux. */
+export const isMac = (platform: string) => platform === 'Darwin'
+
+/** iTerm and Terminal.app exist only on macOS; elsewhere launches fall back to copying the command. */
+export function effectiveLauncher(launcher: Launcher, platform: string): Launcher {
+  return launcher === 'copy' || isMac(platform) ? launcher : 'copy'
+}
+
+/** argv that opens a ticket file or issue URL: the configured editor for files, else the system opener. */
+export function openArgv(target: string, editor: string, platform: string): string[] {
+  if (editor && !/^https?:\/\//.test(target)) return [...editor.split(/\s+/), target]
+  return [isMac(platform) ? 'open' : 'xdg-open', target]
+}

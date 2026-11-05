@@ -44,7 +44,9 @@ test('draws ready, claimed and blocked tickets, and asks before starting one', a
   }))
   on('fs.stat', () => ({ value: { kind: 'file', size: 10, mtimeMs: 1, isLink: false } }))
   on('fs.read', (_, e) => (e.path in FILES ? { value: FILES[e.path]! } : { deny: 'missing' }))
-  on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: 'no gh here' } }))
+  on('process.run', (_, e) => (e.argv[0] === 'uname'
+    ? { value: { exitCode: 0, stdout: 'Darwin\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    : { value: { exitCode: 1, stdout: '', stderr: 'no gh here', isStdoutTruncated: false, isStderrTruncated: false } }))
   on('prompt.submit', (_, e) => { prompts.push(e.text); return { text: e.text } })
   on('session.start', (_, e) => ({ cwd: e.cwd }))
 
