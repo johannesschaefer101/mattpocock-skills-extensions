@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wayfinder-sidebar palette</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --page: #0c0d12; --card: #15161d; --line: #262833; --ui: #d5d8e2; --ui-dim: #8a8fa3; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ui); font: 14px/1.5 Inter, system-ui, sans-serif; }
+  main { max-width: 1240px; margin: 0 auto; padding: 32px 24px 64px; }
+  h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; }
+  h2 { font-size: 15px; font-weight: 600; margin: 40px 0 12px; }
+  p.lede { color: var(--ui-dim); margin: 0 0 24px; max-width: 760px; }
+  .muted { color: var(--ui-dim); }
+
+  /* Palette picker */
+  .picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+  .pal { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; cursor: pointer; text-align: left; color: inherit; font: inherit; }
+  .pal:hover { border-color: #3a3d4c; }
+  .pal[aria-pressed="true"] { border-color: #9aa4ff; box-shadow: 0 0 0 1px #9aa4ff inset; }
+  .pal .name { font-weight: 600; font-size: 13px; }
+  .pal .src { font-size: 11px; color: var(--ui-dim); }
+  .sw { display: flex; margin-top: 10px; border-radius: 4px; overflow: hidden; height: 18px; }
+  .sw i { flex: 1; }
+
+  .controls { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; margin: 16px 0 0; font-size: 13px; color: var(--ui-dim); }
+  .controls input[type=range] { vertical-align: middle; width: 140px; }
+  button.act { background: #2a2d3a; color: var(--ui); border: 1px solid #3a3d4c; border-radius: 6px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  button.act:hover { background: #343848; }
+
+  /* Layout */
+  .split { display: grid; grid-template-columns: auto 1fr; gap: 28px; align-items: start; margin-top: 28px; }
+  @media (max-width: 1000px) { .split { grid-template-columns: 1fr; } }
+
+  /* Terminal */
+  .term { background: var(--bg); border-radius: 10px; padding: 14px 16px; border: 1px solid var(--line); overflow-x: auto; }
+  .term .bar { font: 11px Inter, sans-serif; color: var(--ui-dim); margin: -4px 0 10px; display: flex; justify-content: space-between; }
+  .tl { font: 13px/1.35 'JetBrains Mono', ui-monospace, monospace; white-space: pre; color: var(--text); min-height: 1.35em; }
+  .tl span { display: inline; }
+  .b { font-weight: 700; }
+  .u { text-decoration: underline; text-underline-offset: 2px; }
+
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 14px; }
+  .comp { background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .comp header { padding: 9px 12px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; }
+  .comp header b { font-size: 13px; font-weight: 600; }
+  .comp header small { color: var(--ui-dim); font-size: 11px; text-align: right; }
+  .comp .term { border: 0; border-radius: 0; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { color: var(--ui-dim); font-weight: 500; font-size: 12px; }
+  td code { font: 12px 'JetBrains Mono', monospace; }
+  .chip { display: inline-block; width: 22px; height: 16px; border-radius: 3px; vertical-align: middle; border: 1px solid #ffffff22; }
+  .pill { font: 11px 'JetBrains Mono', monospace; padding: 1px 6px; border-radius: 4px; }
+  .ok { background: #1d3a26; color: #8fe0a6; }
+  .meh { background: #3a321a; color: #f0cf7a; }
+  .bad { background: #3f1d22; color: #f4949d; }
+  .sample { font: 12px 'JetBrains Mono', monospace; padding: 2px 6px; border-radius: 3px; }
+
+  pre.code { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; font: 12px/1.5 'JetBrains Mono', monospace; overflow-x: auto; margin: 0; }
+  .row-head { display: flex; justify-content: space-between; align-items: end; gap: 12px; }
+  .note { font-size: 12px; color: var(--ui-dim); margin-top: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>wayfinder-sidebar palette</h1>
+  <p class="lede">Every component of the sidebar, drawn from the 15 colour constants in <code>hooks/register.tsx</code>. Pick a palette below and the whole page redraws. Row tints and the flash tint are mixed from each type colour into the scheme background, so they stay consistent with whatever you pick.</p>
+
+  <div class="picker" id="picker"></div>
+  <div class="controls">
+    <label>Row tint strength <input type="range" id="tint" min="6" max="34" value="16"> <span id="tintv">16%</span></label>
+    <label>Border <select id="bstyle"><option value="none">none</option><option value="round">round</option><option value="single">single</option><option value="bold">bold</option><option value="double">double</option></select></label>
+    <label>colour <select id="bcolor"><option value="btn">btn</option><option value="banner">banner</option><option value="dim">dim</option><option value="blue">blue</option><option value="text">text</option></select></label>
+    <label><input type="checkbox" id="bpad"> inner padding</label>
+    <label>Pane background <input type="color" id="pane" value="#262626"> <code id="panev">#262626</code> <button class="act" id="panereset">Use theme bg</button></label>
+  </div>
+
+  <div class="split">
+    <div>
+      <h2 style="margin-top:0">Full sidebar</h2>
+      <div class="term" id="full"></div>
+      <p class="note">50 columns, docked. Ticket 07 is selected, 10 and 12 are picked, 11 just unblocked (flash).</p>
+    </div>
+    <div>
+      <h2 style="margin-top:0">Roles</h2>
+      <table id="tokens"></table>
+      <p class="note">Contrast is WCAG ratio of the role's text against the background it's drawn on. 4.5 reads well; under 3 is hard to read.</p>
+    </div>
+  </div>
+
+  <h2>Components</h2>
+  <div class="gallery" id="gallery"></div>
+
+  <div class="row-head"><h2>Constants for <code>register.tsx</code></h2><button class="act" id="copy">Copy</button></div>
+  <pre class="code" id="code"></pre>
+</main>
+
+<script>
+// ---------- palettes ----------
+// Roles match the constants in hooks/register.tsx. bg is the terminal background used for the preview and for mixing tints.
+const PALETTES = [
+  { id: 'current', name: 'Current', src: 'Tailwind / Proschi mix', bg: '#0f1424',
+    ink: '#0b1020', text: '#dbe1ee', dim: '#7c869c', green: '#22c55e', blue: '#7aa7ff', yellow: '#eab308', red: '#ef4444', btn: '#2a3550', banner: '#1c2540',
+    grill: '#ec4899', proto: '#a855f7', rsrch: '#3b82f6', task: '#f97316', unknown: '#8590a8',
+    fixedTint: { grill: '#3a1a2d', proto: '#2e1f45', rsrch: '#172745', task: '#3a2212', unknown: '#242b3b' }, fixedFlash: '#14532d' },
+  { id: 'moon', name: 'Tokyo Night Moon', src: 'LazyVim default', bg: '#222436',
+    ink: '#1b1d2b', text: '#c8d3f5', dim: '#737aa2', green: '#c3e88d', blue: '#82aaff', yellow: '#ffc777', red: '#ff757f', btn: '#3b4261', banner: '#2f334d',
+    grill: '#fca7ea', proto: '#c099ff', rsrch: '#86e1fc', task: '#ff966c', unknown: '#828bb8' },
+  { id: 'night', name: 'Tokyo Night', src: 'tokyonight-night', bg: '#1a1b26',
+    ink: '#16161e', text: '#c0caf5', dim: '#737aa2', green: '#9ece6a', blue: '#7aa2f7', yellow: '#e0af68', red: '#db4b4b', btn: '#3b4261', banner: '#292e42',
+    grill: '#f7768e', proto: '#bb9af7', rsrch: '#7dcfff', task: '#ff9e64', unknown: '#a9b1d6' },
+  { id: 'storm', name: 'Tokyo Night Storm', src: 'tokyonight-storm', bg: '#24283b',
+    ink: '#1f2335', text: '#c0caf5', dim: '#737aa2', green: '#9ece6a', blue: '#7aa2f7', yellow: '#e0af68', red: '#db4b4b', btn: '#414868', banner: '#2f3549',
+    grill: '#f7768e', proto: '#bb9af7', rsrch: '#7dcfff', task: '#ff9e64', unknown: '#a9b1d6' },
+  { id: 'mocha', name: 'Catppuccin Mocha', src: 'bundled in LazyVim', bg: '#1e1e2e',
+    ink: '#11111b', text: '#cdd6f4', dim: '#7f849c', green: '#a6e3a1', blue: '#89b4fa', yellow: '#f9e2af', red: '#f38ba8', btn: '#45475a', banner: '#313244',
+    grill: '#f5c2e7', proto: '#cba6f7', rsrch: '#74c7ec', task: '#fab387', unknown: '#9399b2' },
+  { id: 'macchiato', name: 'Catppuccin Macchiato', src: 'bundled in LazyVim', bg: '#24273a',
+    ink: '#181926', text: '#cad3f5', dim: '#8087a2', green: '#a6da95', blue: '#8aadf4', yellow: '#eed49f', red: '#ed8796', btn: '#494d64', banner: '#363a4f',
+    grill: '#f5bde6', proto: '#c6a0f6', rsrch: '#7dc4e4', task: '#f5a97f', unknown: '#939ab7' },
+]
+const TYPES = ['grill', 'proto', 'rsrch', 'task', 'unknown']
+const TYPE_KEY = { grill: 'grilling', proto: 'prototype', rsrch: 'research', task: 'task', unknown: 'unknown' }
+const WORD = { grill: 'grill', proto: 'proto', rsrch: 'rsrch', task: 'task', unknown: '?' }
+
+// pane: the background the sidebar is drawn on (Claude Code's docked pane in iTerm is an opaque dark grey). null = use the theme's bg.
+let state = { pal: 'current', tint: 34, pane: '#262626', bstyle: 'round', bcolor: 'btn', bpad: false }
+try { const s = JSON.parse(localStorage.getItem('wf-pal3') || 'null'); if (s) state = { ...state, ...s } } catch {}
+
+// ---------- colour maths ----------
+const hex2 = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16))
+const rgb2 = a => '#' + a.map(v => Math.round(v).toString(16).padStart(2, '0')).join('')
+const mix = (a, b, t) => { const A = hex2(a), B = hex2(b); return rgb2(A.map((v, i) => v * t + B[i] * (1 - t))) }
+const lum = h => { const c = hex2(h).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2] }
+const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05) }
+
+function resolve(p) {
+  const r = { ...p }
+  const base = state.pane || p.bg
+  for (const t of TYPES) r['tint-' + t] = p.fixedTint && state.tint === 16 && !state.pane ? p.fixedTint[t] : mix(p[t], base, state.tint / 100)
+  r.flash = p.fixedFlash && state.tint === 16 && !state.pane ? p.fixedFlash : mix(p.green, base, Math.min(0.45, state.tint / 100 + 0.12))
+  r.term = base
+  return r
+}
+
+// ---------- terminal DSL ----------
+const OUTER = 50
+let W = OUTER
+let frame = null // { v: '│', color } while drawing a bordered sidebar
+const BOX = { round: '╭─╮│╰╯', single: '┌─┐│└┘', bold: '┏━┓┃┗┛', double: '╔═╗║╚╝' }
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;')
+// segment: [text, fg?, bg?, flags?] where fg/bg are role names
+const S = (text, fg, bg, f = '') => ({ text, fg, bg, f })
+const line = (...segs) => {
+  segs = segs.map(s => typeof s === 'string' ? S(s) : s)
+  if (frame) {
+    const n = segs.reduce((a, s) => a + s.text.length, 0)
+    const pad = frame.pad ? [S(' ')] : []
+    segs = [S(frame.v, frame.color), ...pad, ...segs, S(' '.repeat(Math.max(0, W - n))), ...pad, S(frame.v, frame.color)]
+  }
+  return rawLine(segs)
+}
+const rawLine = segs => `<div class="tl">${segs.map(s => {
+  const st = [s.fg ? `color:var(--${s.fg})` : '', s.bg ? `background:var(--${s.bg})` : ''].filter(Boolean).join(';')
+  const cls = [s.f.includes('b') ? 'b' : '', s.f.includes('u') ? 'u' : ''].filter(Boolean).join(' ')
+  return `<span${cls ? ` class="${cls}"` : ''}${st ? ` style="${st}"` : ''}>${esc(s.text)}</span>`
+}).join('')}</div>`
+const fit = (s, n) => s.length > n ? s.slice(0, n - 1) + '…' : s.padEnd(n)
+const blank = () => line(' ')
+const SPIN = '⠹'
+
+function banner(c = { ready: 4, claimed: 4, blocked: 3, done: 5 }) {
+  const counts = [[`${c.ready} ▸`, 'green'], [`${c.claimed} ◐`, 'blue'], [`${c.blocked} ⧗`, 'dim'], [`✓ ${c.done}`, 'dim']]
+  const right = counts.map(x => x[0]).join('  ') + ' '
+  const gap = W - 2 - ' ◈ WAYFINDER'.length - right.length
+  return line(S('▐', 'banner'), S(' ◈', 'blue', 'banner', 'b'), S(' WAYFINDER', 'text', 'banner', 'b'), S(' '.repeat(gap), null, 'banner'),
+    ...counts.map((x, i) => S((i ? '  ' : '') + x[0], x[1], 'banner')), S(' ', null, 'banner'), S('▌', 'banner'))
+}
+
+// mirrors row() in register.tsx
+function row({ type, hitl = false, id, title, status = 'ready', cells, picked, flash, selected }) {
+  const tint = flash ? 'flash' : 'tint-' + type
+  const canRun = status === 'ready'
+  const room = W - 27
+  cells = cells || [S('     ', 'dim')]
+  return line(
+    picked ? S('◆', 'green') : S('▐', tint),
+    hitl ? S(` ${WORD[type]}`.padEnd(6) + ' ', 'ink', type, 'b') : S(` ${WORD[type]}`.padEnd(6) + ' ', type, 'ink', 'b'),
+    S(` ${id} `, 'dim', tint),
+    S(fit(title, room), status === 'blocked' ? 'dim' : 'text', tint, (flash ? 'b' : '') + (selected ? 'u' : '')),
+    S(' ', null, tint),
+    ...cells.map(c => ({ ...c, bg: tint })),
+    S(' ', null, tint),
+    S(' md ', 'text', 'btn'),
+    S(' ▶ ', canRun ? 'green' : 'dim', canRun ? 'btn' : tint),
+    S('▌', tint),
+  )
+}
+const group = (label, color, n) => line(S(label + ' ', color), S(String(n), 'dim'))
+const sep = () => line(S('─'.repeat(W), 'dim'))
+const detail = () => [
+  line(S('  P3: user-confirmed payment flow with retries', 'text')),
+  line(S('  needs you · no blockers', 'dim')),
+  line(S('  unblocks ', 'dim'), S('13 ' + fit('Implement P1/P2 policy enforcement', W - 2 - 9 - 3 - 8).trimEnd(), 'task'), S(' +1 more', 'dim')),
+  line(S('  ? missing "Blocked by" section', 'yellow')),
+].join('')
+const btn = (key, label, primary) => [S(` ${key} `, primary ? 'ink' : 'text', primary ? 'blue' : 'btn', 'b'), S(` ${label} `, primary ? 'ink' : 'text', primary ? 'blue' : 'btn'), S(' ')]
+const stripAsk = () => line(S('  ▶ Start 2 tickets (10 12) in new iTerm tabs?', 'yellow')) + line(S('  '), ...btn('h', 'handoff + start', true), ...btn('f', 'fresh'), ...btn('c', 'cancel')) + blank()
+const stripWriting = () => line(S(`  ${SPIN} this session is writing the handoff…`, 'yellow')) + line(S('  It waits for the current turn to end first.', 'dim')) + line(S('  '), ...btn('f', 'skip, start fresh'), ...btn('c', 'cancel')) + blank()
+const stripReady = () => line(S('  ✓ handoff ready', 'green')) + line(S('  '), ...btn('l', 'launch', true), ...btn('v', 'view'), ...btn('d', 'discard')) + blank()
+
+function ctxRow(parts, pct, tokens, level) {
+  const labW = 20, barW = W - 2 - labW - 1 - 5
+  const len = parts.reduce((n, p) => n + p.text.length, 0)
+  const filled = Math.min(barW, Math.round(barW * pct))
+  const lc = { ok: 'green', warn: 'yellow', over: 'red' }[level]
+  return line(S('  '), ...parts, S(' '.repeat(Math.max(0, labW - len))), S(' '),
+    S('█'.repeat(filled), lc), S('░'.repeat(barW - filled), 'btn'),
+    S(' ' + tokens.padStart(4), level === 'ok' ? 'dim' : lc, level === 'over' ? 'b' : ''))
+}
+const ctxSection = () => [
+  line(S('◔ Context ', 'text'), S('· 200k a session', 'dim')),
+  ctxRow([S('you', 'blue'), S(' '), S('06', 'grill'), S(' P1 & P2: s…', 'dim')], 0.46, '92k', 'ok'),
+  ctxRow([S('09', 'task'), S(' Implement iden…', 'dim')], 0.905, '181k', 'warn'),
+  ctxRow([S('04', 'rsrch'), S(' Survey payment…', 'dim')], 1, '231k', 'over'),
+  blank(),
+].join('')
+const footerHints = () => {
+  const h = (k, l) => [S(k, 'text', 'banner'), S(' ' + l + ' ', 'dim', 'banner')]
+  const pad = (segs) => { const n = segs.reduce((a, s) => a + s.text.length, 0); return [S(' ', null, 'banner'), ...segs, S(' '.repeat(Math.max(0, W - 1 - n)), null, 'banner')] }
+  return line(...pad([...h('j', 'down'), ...h('k', 'up'), ...h('o', 'open'), ...h('g', 'refresh')])) +
+         line(...pad([...h('s', 'start 2'), ...h('x', 'pick'), ...h('r', 'show done')]))
+}
+const mapTabs = () => line(...btn('', 'Checkout rework', true).slice(1), ...btn('', 'Auth migration').slice(1))
+
+function fullSidebar() {
+  if (state.bstyle === 'none') return sidebarBody()
+  const [tl, h, tr, v, bl, br] = BOX[state.bstyle]
+  const c = state.bcolor
+  W = OUTER - 2 - (state.bpad ? 2 : 0)
+  frame = { v, color: c, pad: state.bpad }
+  try {
+    const body = sidebarBody()
+    return rawLine([S(tl + h.repeat(OUTER - 2) + tr, c)]) + body + rawLine([S(bl + h.repeat(OUTER - 2) + br, c)])
+  } finally { W = OUTER; frame = null }
+}
+
+function sidebarBody() {
+  return [
+    mapTabs(),
+    banner(),
+    line(S('◎ I4 submitted on Canvas', 'text', null, 'b')),
+    line(S('  with the payment flow verified end to end', 'text')),
+    sep(),
+    group('▸ Ready', 'green', 4),
+    row({ type: 'grill', hitl: true, id: '07', title: 'P3: user-confirmed payment flow', selected: true }),
+    detail(),
+    row({ type: 'task', id: '10', title: 'Enforce bag allowance server side', picked: true }),
+    stripAsk(),
+    row({ type: 'proto', id: '11', title: 'Sketch the checkout summary card', flash: true }),
+    row({ type: 'rsrch', hitl: true, id: '12', title: 'Compare PSP retry semantics', picked: true }),
+    blank(),
+    group('◐ Claimed', 'blue', 4),
+    row({ type: 'grill', hitl: true, id: '06', title: 'P1 & P2: server-side contracts', status: 'claimed', cells: [S(`${SPIN} you`, 'blue')] }),
+    row({ type: 'task', id: '09', title: 'Implement identity & session', status: 'claimed', cells: [S(`${SPIN}181k`, 'yellow')] }),
+    row({ type: 'rsrch', id: '04', title: 'Survey payment providers', status: 'claimed', cells: [S(`${SPIN}231k`, 'red')] }),
+    row({ type: 'proto', id: '05', title: 'Prototype basket drawer', status: 'claimed', cells: [S(`${SPIN} tab`, 'yellow')] }),
+    blank(),
+    group('↗ Starting', 'blue', 1),
+    row({ type: 'task', id: '14', title: 'Wire analytics events', status: 'launching', cells: [S('↗ new', 'blue')] }),
+    blank(),
+    group('⧗ Blocked', 'dim', 3),
+    row({ type: 'task', id: '13', title: 'Implement P1/P2 policy enforcement', status: 'blocked', cells: [S('06 +2', 'dim')] }),
+    row({ type: 'rsrch', id: '15', title: 'Load test the payment queue', status: 'blocked', cells: [S('06', 'grill'), S(' '), S('09', 'task')] }),
+    row({ type: 'unknown', id: '16', title: 'Untyped ticket from GitHub', status: 'blocked', cells: [S('   '), S('11', 'proto')] }),
+    blank(),
+    ctxSection(),
+    line(S('≋ fog: refund policy for partial shipments +2', 'dim')),
+    sep(),
+    line(S('✓ 5 resolved', 'dim')),
+    footerHints(),
+  ].join('')
+}
+
+const COMPONENTS = [
+  ['Map tabs', 'Claude Code Button primary / secondary', () => mapTabs()],
+  ['Banner', 'banner · blue · text · green · dim', () => banner()],
+  ['Destination + error', 'text · yellow', () => line(S('◎ I4 submitted on Canvas', 'text', null, 'b')) + line(S('! map.md: could not parse ticket 17', 'yellow')) + sep()],
+  ['Group headings', 'green · blue · dim', () => group('▸ Ready', 'green', 4) + group('◐ Claimed', 'blue', 2) + group('↗ Starting', 'blue', 1) + group('⧗ Blocked', 'dim', 10)],
+  ['Type chips · HITL (needs you)', 'type on solid · ink text', () => TYPES.map(t => row({ type: t, hitl: true, id: '0' + (TYPES.indexOf(t) + 1), title: TYPE_KEY[t] + ' ticket' })).join('')],
+  ['Type chips · AFK (agent alone)', 'type text on ink', () => TYPES.map(t => row({ type: t, id: '0' + (TYPES.indexOf(t) + 1), title: TYPE_KEY[t] + ' ticket' })).join('')],
+  ['Row states', 'selected · picked · flash', () =>
+    row({ type: 'grill', hitl: true, id: '07', title: 'Selected (underlined)', selected: true }) +
+    row({ type: 'task', id: '10', title: 'Picked for a batch start', picked: true }) +
+    row({ type: 'proto', id: '11', title: 'Just unblocked (flash)', flash: true }) +
+    row({ type: 'rsrch', id: '12', title: 'Plain ready row' })],
+  ['Status cells', 'blue · yellow · red · type colours', () =>
+    row({ type: 'grill', id: '06', title: 'Claimed by you', status: 'claimed', cells: [S(`${SPIN} you`, 'blue')] }) +
+    row({ type: 'task', id: '09', title: 'Peer tab, context ok', status: 'claimed', cells: [S(`${SPIN} 92k`, 'green')] }) +
+    row({ type: 'task', id: '08', title: 'Peer tab, context warn', status: 'claimed', cells: [S(`${SPIN}181k`, 'yellow')] }) +
+    row({ type: 'rsrch', id: '04', title: 'Peer tab, over budget', status: 'claimed', cells: [S(`${SPIN}231k`, 'red')] }) +
+    row({ type: 'proto', id: '05', title: 'Claimed, tab without mod', status: 'claimed', cells: [S(`${SPIN} tab`, 'yellow')] }) +
+    row({ type: 'task', id: '14', title: 'Launching', status: 'launching', cells: [S('↗ new', 'blue')] }) +
+    row({ type: 'task', id: '13', title: 'Blocked by several', status: 'blocked', cells: [S('06 +2', 'dim')] }) +
+    row({ type: 'rsrch', id: '15', title: 'Blocked, ids by type', status: 'blocked', cells: [S('06', 'grill'), S(' '), S('09', 'task')] })],
+  ['Detail panel', 'text · dim · yellow · type', () => row({ type: 'grill', hitl: true, id: '07', title: 'P3: user-confirmed payment flow', selected: true }) + detail()],
+  ['Launch strip · ask', 'yellow · buttons', () => stripAsk()],
+  ['Launch strip · writing', 'yellow · dim', () => stripWriting()],
+  ['Launch strip · ready', 'green · buttons', () => stripReady()],
+  ['Context bars', 'green / yellow / red fill · btn track', () => ctxSection()],
+  ['Fog + resolved', 'dim', () => line(S('≋ fog: refund policy for partial shipments +2', 'dim')) + sep() + line(S('✓ 5 resolved', 'dim'))],
+  ['Resolved list (r)', 'dim', () => ['01 Map the checkout domain', '02 Pick a PSP', '03 Spike: 3DS challenge'].map(t => line(S(`  ✓ ${t}`, 'dim'))).join('')],
+  ['Empty states', 'text · dim · green', () => line(S('No wayfinder map here yet.', 'text')) + line(S('Looked for .scratch/<effort>/map.md. Run /wayfinder.', 'dim')) + blank() + line(S('Every ticket is resolved. The way is clear.', 'green'))],
+  ['Key hints footer', 'banner bg · text · dim', () => footerHints()],
+]
+
+// ---------- roles table ----------
+const ROLES = [
+  ['grill', 'grilling type', 'ink'], ['proto', 'prototype type', 'ink'], ['rsrch', 'research type', 'ink'], ['task', 'task type', 'ink'], ['unknown', 'untyped ticket', 'ink'],
+  ['ink', 'text on solid chips, AFK chip bg', 'grill'],
+  ['text', 'titles, banner name', 'tint-task'], ['dim', 'ids, counts, blocked, hints', 'tint-rsrch'],
+  ['green', 'ready, ▶, ok, picked', 'btn'], ['blue', 'claimed, you, ◈', 'banner'], ['yellow', 'warn, prompts, errors', 'term'], ['red', 'over budget', 'term'],
+  ['btn', 'md / ▶ buttons, bar track', 'term'], ['banner', 'banner + footer bg', 'term'],
+  ['tint-grill', 'grill row bg', null], ['tint-proto', 'proto row bg', null], ['tint-rsrch', 'research row bg', null], ['tint-task', 'task row bg', null], ['tint-unknown', 'untyped row bg', null], ['flash', 'just-unblocked row bg', null],
+]
+
+function render() {
+  const p = PALETTES.find(x => x.id === state.pal) || PALETTES[1]
+  const r = resolve(p)
+  const root = document.documentElement
+  for (const [k, v] of Object.entries(r)) if (typeof v === 'string' && v.startsWith('#')) root.style.setProperty('--' + k, v)
+  root.style.setProperty('--bg', r.term)
+
+  document.getElementById('picker').innerHTML = PALETTES.map(x => `
+    <button class="pal" data-id="${x.id}" aria-pressed="${x.id === state.pal}">
+      <div class="name">${x.name}</div><div class="src">${x.src}</div>
+      <div class="sw" style="background:${x.bg}">${['grill', 'proto', 'rsrch', 'task', 'green', 'blue', 'yellow', 'red', 'text', 'dim'].map(k => `<i style="background:${x[k]}"></i>`).join('')}</div>
+    </button>`).join('')
+  document.querySelectorAll('.pal').forEach(b => b.onclick = () => { state.pal = b.dataset.id; save(); render() })
+
+  document.getElementById('full').innerHTML = `<div class="bar"><span>${p.name}</span><span>${W} cols</span></div>` + fullSidebar()
+  document.getElementById('gallery').innerHTML = COMPONENTS.map(([n, d, f]) => `<section class="comp"><header><b>${n}</b><small>${d}</small></header><div class="term">${f()}</div></section>`).join('')
+
+  const grade = c => `<span class="pill ${c >= 4.5 ? 'ok' : c >= 3 ? 'meh' : 'bad'}">${c.toFixed(1)}</span>`
+  document.getElementById('tokens').innerHTML = `<tr><th></th><th>Role</th><th>Used for</th><th>Hex</th><th>Sample</th><th>Contrast</th></tr>` +
+    ROLES.map(([k, use, on]) => {
+      const v = r[k], bgv = on ? r[on] : null
+      const sample = on ? `<span class="sample" style="color:${v};background:${bgv}">Aa ${k}</span>` : `<span class="sample" style="color:${r.text};background:${v}">Aa text</span>`
+      const c = on ? contrast(v, bgv) : contrast(r.text, v)
+      return `<tr><td><span class="chip" style="background:${v}"></span></td><td><code>${k}</code></td><td class="muted">${use}</td><td><code>${v}</code></td><td>${sample}</td><td>${grade(c)}</td></tr>`
+    }).join('')
+
+  document.getElementById('code').textContent = codeFor(p, r)
+  document.getElementById('tintv').textContent = state.tint + '%'
+  document.getElementById('tint').value = state.tint
+  document.getElementById('pane').value = r.term
+  document.getElementById('bstyle').value = state.bstyle
+  document.getElementById('bcolor').value = state.bcolor
+  document.getElementById('bpad').checked = state.bpad
+  document.getElementById('panev').textContent = state.pane ? r.term : r.term + ' (theme)'
+}
+
+function codeFor(p, r) {
+  const q = s => `'${s}'`
+  return `// Colors: ${p.name}${p.id === 'current' ? '' : ' (LazyVim)'}. Row tints are each type color mixed ${state.tint}% into the pane background (${r.term}).
+const COLOR = { grilling: ${q(r.grill)}, prototype: ${q(r.proto)}, research: ${q(r.rsrch)}, task: ${q(r.task)}, unknown: ${q(r.unknown)} } as const
+const TINT = { grilling: ${q(r['tint-grill'])}, prototype: ${q(r['tint-proto'])}, research: ${q(r['tint-rsrch'])}, task: ${q(r['tint-task'])}, unknown: ${q(r['tint-unknown'])} } as const
+const WORD = { grilling: 'grill', prototype: 'proto', research: 'rsrch', task: 'task', unknown: '?' } as const
+const INK = ${q(r.ink)}
+const TEXT = ${q(r.text)}
+const DIM = ${q(r.dim)}
+const GREEN = ${q(r.green)}
+const FLASH_TINT = ${q(r.flash)}
+const BLUE = ${q(r.blue)}
+const YELLOW = ${q(r.yellow)}
+const BTN = ${q(r.btn)}
+const BANNER = ${q(r.banner)}
+const RED = ${q(r.red)}
+const LEVEL = { ok: GREEN, warn: YELLOW, over: RED } as const`
+}
+
+document.getElementById('bstyle').onchange = e => { state.bstyle = e.target.value; save(); render() }
+document.getElementById('bcolor').onchange = e => { state.bcolor = e.target.value; save(); render() }
+document.getElementById('bpad').onchange = e => { state.bpad = e.target.checked; save(); render() }
+function save() { try { localStorage.setItem('wf-pal3', JSON.stringify(state)) } catch {} }
+document.getElementById('tint').oninput = e => { state.tint = +e.target.value; save(); render() }
+document.getElementById('pane').oninput = e => { state.pane = e.target.value; save(); render() }
+document.getElementById('panereset').onclick = () => { state.pane = null; save(); render() }
+document.getElementById('copy').onclick = async e => {
+  try { await navigator.clipboard.writeText(document.getElementById('code').textContent); e.target.textContent = 'Copied' }
+  catch { e.target.textContent = 'Select the text to copy' }
+  setTimeout(() => e.target.textContent = 'Copy', 1500)
+}
+render()
+</script>
+</body>
+</html>

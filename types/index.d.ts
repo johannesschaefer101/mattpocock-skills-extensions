@@ -75,6 +75,7 @@ declare module 'claude-code' {
       launches: Shaped<Launch[]>
       flash: Shaped<Flash | null>
       mine: string[]
+      working: string[]
       peers: Shaped<Record<string, string>>
       showDone: boolean
       spin: number

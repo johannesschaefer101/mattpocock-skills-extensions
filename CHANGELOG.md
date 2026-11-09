@@ -5,6 +5,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Added
+- A session started with `/wayfinder <map> <ticket>` (as ▶ starts them) shows that ticket as its own from the first turn, and every other tab shows it as claimed, before the claim reaches the ticket file.
 - Context bars: this session's context fill and that of each other tab holding a ticket, against a per-session budget (`contextBudget`, default 200k).
 
 ### Changed

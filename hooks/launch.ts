@@ -50,6 +50,18 @@ export function sessionPrompt(m: WfMap, t: Ticket, handoffPath: string | undefin
   return `${base}  Context from the session that launched this one: read the "## ${t.id}" section of ${handoffPath} before anything else.`
 }
 
+/**
+ * The ticket a `/wayfinder <map> <ticket>` session works on, read from the command's arguments
+ * (the inverse of sessionPrompt). Only an exact map reference followed by an open ticket's id counts.
+ */
+export function sessionTicket(args: string, maps: readonly WfMap[]): { mapKey: string; id: string } | undefined {
+  const [ref, id] = args.trim().split(/\s+/)
+  if (!ref || !id) return undefined
+  const m = maps.find(x => mapRef(x) === ref)
+  const t = m?.tickets.find(x => ticketRef(x) === id)
+  return m && t && !t.closed ? { mapKey: m.key, id: t.id } : undefined
+}
+
 export function shellCommand(root: string, prompt: string): string {
   return `cd ${shellQuote(root)} && claude ${shellQuote(prompt)}`
 }

@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { budgetBar, budgetLevel, fmtTokens, localId, newlyReady, nextUnblocked, plainText, wrapLines, parseLocalTicket, parseMapBody, statusOf } from './tracker'
-import { effectiveLauncher, handoffFile, handoffRules, launchArgv, openArgv, sessionPrompt, shellCommand } from './launch'
+import { effectiveLauncher, handoffFile, handoffRules, launchArgv, openArgv, sessionPrompt, sessionTicket, shellCommand } from './launch'
 import type { WfMap } from '../types'
 
 const FRONT = `---
@@ -78,6 +78,8 @@ test('launch command and handoff path', async () => {
   expect(p.startsWith('/tmp/wayfinder-handoffs/i4-agent-security-07-08-')).toBe(true)
   expect(sessionPrompt(m, t, undefined)).toBe('/wayfinder .scratch/w/map.md 07')
   expect(sessionPrompt(m, t, p)).toContain(`read the "## 07" section of ${p}`)
+  expect(sessionTicket('.scratch/w/map.md 07', [{ ...m, tickets: [t] }])).toEqual({ mapKey: m.key, id: '07' })
+  expect(sessionTicket(sessionPrompt(m, t, p).slice('/wayfinder '.length), [{ ...m, tickets: [t] }])).toEqual({ mapKey: m.key, id: '07' })
   expect(shellCommand("/a b/it's", 'x')).toBe(`cd '/a b/it'\\''s' && claude 'x'`)
   expect(launchArgv('copy', 'x')).toBe(undefined)
   expect(launchArgv('iterm', 'say "hi"')?.join(' ')).toContain('write text "say \\"hi\\""')
@@ -135,4 +137,19 @@ test('context budget bar', async () => {
   expect(budgetBar(100_000, 200_000, 10)).toEqual({ fill: '█████', track: '░░░░░' })
   expect(budgetBar(105_000, 200_000, 10)).toEqual({ fill: '█████▎', track: '░░░░' })
   expect(budgetBar(900_000, 200_000, 10)).toEqual({ fill: '██████████', track: '' })
+})
+
+test('a /wayfinder prompt names the ticket its session works on, and nothing else does', async () => {
+  const t = parseLocalTicket('07-p3.md', SKILL_DOC, '/7')
+  const done = { ...parseLocalTicket('08-x.md', SKILL_DOC, '/8'), closed: true }
+  const m: WfMap = { key: '/r/.scratch/w/map.md', tracker: 'local', relPath: '.scratch/w/map.md', title: 'W', destination: '', fog: [], decisions: 0, tickets: [t, done] }
+  const g: WfMap = { key: 'gh:o/r#3', tracker: 'github', url: 'https://github.com/o/r/issues/3', title: 'G', destination: '', fog: [], decisions: 0, tickets: [{ ...t, id: '#12' }] }
+  expect(sessionTicket('.scratch/w/map.md 07', [m, g])).toEqual({ mapKey: m.key, id: '07' })
+  expect(sessionTicket('https://github.com/o/r/issues/3 #12', [m, g])).toEqual({ mapKey: g.key, id: '#12' })
+  expect(sessionTicket('', [m])).toBeUndefined() // charting a new map
+  expect(sessionTicket('.scratch/w/map.md', [m])).toBeUndefined() // a map, no ticket
+  expect(sessionTicket('.scratch/w/map.md 08', [m])).toBeUndefined() // closed
+  expect(sessionTicket('.scratch/w/map.md 99', [m])).toBeUndefined() // no such ticket
+  expect(sessionTicket('.scratch/other/map.md 07', [m])).toBeUndefined() // another map
+  expect(sessionTicket('what does 07 need?', [m])).toBeUndefined()
 })

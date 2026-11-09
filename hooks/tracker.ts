@@ -174,9 +174,10 @@ export function openBlockers(t: Ticket, all: readonly Ticket[]): string[] {
   return t.blockedBy.filter(b => byId.has(b) && !byId.get(b)!.closed)
 }
 
-export function statusOf(t: Ticket, all: readonly Ticket[], launching: ReadonlySet<string>): Status {
+/** `held`: ids a session works on before its claim reaches the ticket (from its `/wayfinder` prompt). */
+export function statusOf(t: Ticket, all: readonly Ticket[], launching: ReadonlySet<string>, held: ReadonlySet<string> = new Set()): Status {
   if (t.closed) return 'closed'
-  if (t.assignee) return 'claimed'
+  if (t.assignee || held.has(t.id)) return 'claimed'
   if (launching.has(t.id)) return 'launching'
   return openBlockers(t, all).length ? 'blocked' : 'ready'
 }

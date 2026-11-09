@@ -21,7 +21,7 @@ import {
   type GhIssue,
   type Status,
 } from './tracker'
-import { effectiveLauncher, handoffFile, handoffPrompt, launchArgv, openArgv, sessionPrompt, shellCommand, type Launcher } from './launch'
+import { effectiveLauncher, handoffFile, handoffPrompt, launchArgv, openArgv, sessionPrompt, sessionTicket, shellCommand, type Launcher } from './launch'
 
 const P = 'wayfinder-sidebar'
 const PANE = 'wayfinder'
@@ -39,6 +39,8 @@ const pickedA = atom({ plugin: 'wayfinder-sidebar', key: 'picked' } as const, []
 const launchesA = atom({ plugin: 'wayfinder-sidebar', key: 'launches' } as const, [] as Launch[], { shape: 'launches-1' })
 const flashA = atom({ plugin: 'wayfinder-sidebar', key: 'flash' } as const, null as Flash | null, { shape: 'flash-1' })
 const mineA = atom({ plugin: 'wayfinder-sidebar', key: 'mine' } as const, [] as string[])
+// The ticket this session was started on with `/wayfinder <map> <ticket>`, held before its claim lands in the file.
+const workingA = atom({ plugin: 'wayfinder-sidebar', key: 'working' } as const, [] as string[])
 const peersA = atom({ plugin: 'wayfinder-sidebar', key: 'peers' } as const, {} as Record<string, string>, { shape: 'peers-1' })
 const showDoneA = atom({ plugin: 'wayfinder-sidebar', key: 'showDone' } as const, false)
 const spinA = atom({ plugin: 'wayfinder-sidebar', key: 'spin' } as const, 0)
@@ -87,6 +89,7 @@ let ghRepo: string | null | undefined // undefined: not checked yet; null: none
 let lastGh = 0
 let ghMaps: WfMap[] = []
 let busy = false
+let pendingWork: string | undefined // `/wayfinder` arguments waiting for the maps to load
 let tick = 0
 const localSig = new Map<string, { sig: string; map: WfMap }>()
 
@@ -185,6 +188,7 @@ async function refresh($: Dollar, opt: { github?: boolean } = {}) {
       if (before) fresh.push(...newlyReady(before.tickets, m.tickets).map(id => `${m.key}|${id}`))
     }
     await update($, mapsA, () => next)
+    await resolveWork($)
     if (fresh.length) await update($, flashA, () => ({ ids: fresh, until: now + FLASH_MS }))
     const active = await read($, activeA)
     const first = next[0]
@@ -204,15 +208,17 @@ async function refresh($: Dollar, opt: { github?: boolean } = {}) {
 // ---------- which tab holds which ticket ----------
 
 /** What each tab running the mod keeps in the shared store under `peer:<session id>`. */
-type PeerRecord = { claims: string[]; tokens?: number; window?: number; at?: number }
+type PeerRecord = { claims: string[]; working?: string[]; tokens?: number; window?: number; at?: number }
 
 const readPeer = (v: unknown): PeerRecord =>
   Array.isArray(v) ? { claims: v as string[] } : ((v ?? { claims: [] }) as PeerRecord) // 0.1.0 stored a bare list
 
 async function publishSelf($: Dollar, claims: string[]) {
+  if (!sessionId) sessionId = await $.session.id().catch(() => '') // cleared after a /clear
   if (!sessionId) return
   const self = await read($, selfCtxA)
-  const rec: PeerRecord = { claims, tokens: self?.tokens, window: self?.window, at: await $.clock.now() }
+  const working = await read($, workingA)
+  const rec: PeerRecord = { claims, working, tokens: self?.tokens, window: self?.window, at: await $.clock.now() }
   await $.store.set(`peer:${sessionId}`, rec)
 }
 
@@ -220,8 +226,11 @@ async function syncPeers($: Dollar, maps: WfMap[]) {
   const mine = await read($, mineA)
   const open = new Set<string>()
   for (const m of maps) for (const t of m.tickets) if (t.assignee && !t.closed) open.add(`${m.key}|${t.id}`)
+  const notClosed = new Set<string>()
+  for (const m of maps) for (const t of m.tickets) if (!t.closed) notClosed.add(`${m.key}|${t.id}`)
   const kept = mine.filter(k => open.has(k))
   if (kept.length !== mine.length) await update($, mineA, () => kept)
+  await update($, workingA, ws => (ws.every(k => notClosed.has(k)) ? ws : ws.filter(k => notClosed.has(k))))
   await publishSelf($, kept)
   const labels: Record<string, string> = {}
   const contexts: Ctx[] = []
@@ -229,13 +238,37 @@ async function syncPeers($: Dollar, maps: WfMap[]) {
     if (!key.startsWith('peer:') || key === `peer:${sessionId}`) continue
     const rec = readPeer(await $.store.get(key))
     const sid = key.slice(5)
-    const live = rec.claims.filter(k => open.has(k))
+    const live = [...new Set([...(rec.working ?? []).filter(k => notClosed.has(k)), ...rec.claims.filter(k => open.has(k))])]
     if (!live.length) { await $.store.delete(key); continue }
     for (const k of live) labels[k] = 'tab'
     if (rec.window) contexts.push({ who: sid.slice(0, 3), keys: live, tokens: rec.tokens, window: rec.window, at: rec.at ?? 0 })
   }
   await update($, peersA, () => labels)
   await update($, contextsA, () => contexts)
+}
+
+/** Ticket ids on map `m` that a session holds: this one's, by claim or by its `/wayfinder` prompt, and other tabs'. */
+async function heldSet($: Dollar, m: WfMap): Promise<Set<string>> {
+  const keys = [...(await read($, workingA)), ...Object.keys(await read($, peersA))]
+  return new Set(keys.filter(k => k.startsWith(`${m.key}|`)).map(k => k.slice(m.key.length + 1)))
+}
+
+/**
+ * Holds the ticket a `/wayfinder <map> <ticket>` prompt names, so this session shows it as its own
+ * from the first turn. Skipped when the arguments name no open ticket, or another tab holds it.
+ */
+async function resolveWork($: Dollar) {
+  if (pendingWork === undefined) return
+  const maps = await read($, mapsA)
+  if (!maps.length) return // not loaded yet: the next refresh tries again
+  const hit = sessionTicket(pendingWork, maps)
+  pendingWork = undefined
+  if (!hit) return
+  const key = `${hit.mapKey}|${hit.id}`
+  if (key in (await read($, peersA))) return
+  await update($, workingA, () => [key])
+  await update($, activeA, () => hit.mapKey)
+  await publishSelf($, await read($, mineA))
 }
 
 async function noteClaim($: Dollar, mapKey: string, id: string) {
@@ -298,14 +331,15 @@ async function startPressed($: Dollar, id: string) {
   if (!m) return
   if (await read($, flowA)) { $.ui.toast('Finish or cancel the start in progress first.'); return }
   const launching = await launchSet($)
+  const held = await heldSet($, m)
   const picked = (await read($, pickedA)).filter(p => {
     const t = m.tickets.find(x => x.id === p)
-    return t && statusOf(t, m.tickets, launching) === 'ready'
+    return t && statusOf(t, m.tickets, launching, held) === 'ready'
   })
   const t = m.tickets.find(x => x.id === id)
-  const ids = picked.length ? picked : t && statusOf(t, m.tickets, launching) === 'ready' ? [t.id] : []
+  const ids = picked.length ? picked : t && statusOf(t, m.tickets, launching, held) === 'ready' ? [t.id] : []
   if (!ids.length) {
-    const s = t ? statusOf(t, m.tickets, launching) : 'closed'
+    const s = t ? statusOf(t, m.tickets, launching, held) : 'closed'
     $.ui.toast(s === 'blocked' && t ? `${t.id} is waiting on ${openBlockers(t, m.tickets).join(', ')}.` : `${id} is not ready to start.`)
     return
   }
@@ -371,7 +405,7 @@ async function discard($: Dollar) {
 async function move($: Dollar, by: 1 | -1) {
   const m = await activeMap($)
   if (!m) return
-  const order = visibleOrder(m, await launchSet($))
+  const order = visibleOrder(m, await launchSet($), await heldSet($, m))
   if (!order.length) return
   const cur = await read($, selA)
   const i = order.indexOf(cur)
@@ -399,8 +433,8 @@ async function onTick($: Dollar) {
   if (tick % Math.max(1, Math.round((opts.pollSeconds * 1000) / TICK_MS)) === 0) await refresh($)
 }
 
-function visibleOrder(m: WfMap, launching: Set<string>): string[] {
-  const by = (s: Status) => m.tickets.filter(t => statusOf(t, m.tickets, launching) === s).map(t => t.id)
+function visibleOrder(m: WfMap, launching: Set<string>, held: Set<string>): string[] {
+  const by = (s: Status) => m.tickets.filter(t => statusOf(t, m.tickets, launching, held) === s).map(t => t.id)
   return [...by('ready'), ...by('claimed'), ...by('launching'), ...by('blocked')]
 }
 
@@ -465,6 +499,26 @@ export const register: Register = (on, options) => {
     return { text: r.isPlaced ? `Wayfinder sidebar open (${maps.length} map${maps.length > 1 ? 's' : ''}).` : `Wayfinder sidebar is waiting for room: ${r.reason}` }
   })
 
+  // A session started with `/wayfinder <map> <ticket>` (as ▶ starts them) works on that ticket.
+  on('prompt.submit', async ($, e, next) => {
+    const args = e.command
+      ? (e.command.name === 'wayfinder' ? e.command.args : undefined)
+      : /^\/wayfinder\s/.test(e.text) ? e.text.replace(/^\/wayfinder\s+/, '') : undefined
+    if (args !== undefined) { pendingWork = args; void resolveWork($) }
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
+  // After a /clear the conversation that held the ticket is gone; the process goes on under a new id.
+  on('session.end', async ($, e, next) => {
+    if (e.reason === 'clear') {
+      pendingWork = undefined
+      await update($, workingA, () => [])
+      await $.store.delete(`peer:${e.sessionId}`).catch(() => undefined)
+      sessionId = ''
+    }
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
   // This session's own edits to ticket files: refresh at once, and remember claims it made.
   on('tool.call', async ($, e, next) => {
     const ran = await next(e)
@@ -491,6 +545,7 @@ export const register: Register = (on, options) => {
     const launches = await read($, launchesA)
     const flash = await read($, flashA)
     const mine = await read($, mineA)
+    const working = await read($, workingA)
     const peers = await read($, peersA)
     const showDone = await read($, showDoneA)
     const contexts = await read($, contextsA)
@@ -507,7 +562,8 @@ export const register: Register = (on, options) => {
     }
 
     const launching = new Set(launches.filter(l => l.mapKey === m.key).map(l => l.id))
-    const st = (t: Ticket) => statusOf(t, m.tickets, launching)
+    const held = await heldSet($, m)
+    const st = (t: Ticket) => statusOf(t, m.tickets, launching, held)
     const open = m.tickets.filter(t => !t.closed)
     const count = (s: Status) => open.filter(t => st(t) === s).length
     const idW = Math.max(2, ...m.tickets.map(t => t.id.length))
@@ -520,7 +576,7 @@ export const register: Register = (on, options) => {
       const s = st(t)
       if (s === 'claimed') {
         const k = `${m.key}|${t.id}`
-        if (mine.includes(k)) return [{ text: `${spin} you`, color: BLUE }]
+        if (mine.includes(k) || working.includes(k)) return [{ text: `${spin} you`, color: BLUE }]
         // Another tab running the mod: how much of its context budget it has used.
         const c = contexts.find(x => x.keys.includes(k))
         if (c && c.tokens !== undefined) {
@@ -650,7 +706,7 @@ export const register: Register = (on, options) => {
     const contextSection = () => {
       const idsOf = (keys: string[]) => keys.filter(k => k.startsWith(`${m.key}|`)).map(k => k.slice(m.key.length + 1))
       const rows: { key: string; isYou: boolean; ids: string[]; tokens?: number; window: number }[] = []
-      if (selfCtx) rows.push({ key: 'you', isYou: true, ids: idsOf(mine), tokens: selfCtx.tokens, window: selfCtx.window })
+      if (selfCtx) rows.push({ key: 'you', isYou: true, ids: idsOf([...new Set([...working, ...mine])]), tokens: selfCtx.tokens, window: selfCtx.window })
       for (const c of contexts) { const ids = idsOf(c.keys); if (ids.length) rows.push({ key: c.who, isYou: false, ids, tokens: c.tokens, window: c.window }) }
       if (!rows.length) return null
       // Each bar is labelled by the ticket its session holds; this session's also says "you".
