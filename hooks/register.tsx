@@ -21,7 +21,7 @@ import {
   type GhIssue,
   type Status,
 } from './tracker'
-import { effectiveLauncher, handoffFile, handoffPrompt, launchArgv, openArgv, sessionPrompt, sessionTicket, shellCommand, type Launcher } from './launch'
+import { effectiveLauncher, handoffFile, handoffPrompt, launchArgv, mapRef, openArgv, sessionPrompt, sessionTicket, shellCommand, ticketRef, type Launcher } from './launch'
 
 const P = 'wayfinder-sidebar'
 const PANE = 'wayfinder'
@@ -91,6 +91,7 @@ let ghMaps: WfMap[] = []
 let busy = false
 let pendingWork: string | undefined // `/wayfinder` arguments waiting for the maps to load
 let tick = 0
+let focused: string | undefined // key of the pane element holding the focus ring
 const localSig = new Map<string, { sig: string; map: WfMap }>()
 
 // ---------- loading ----------
@@ -344,7 +345,35 @@ async function startPressed($: Dollar, id: string) {
     return
   }
   await update($, selA, () => ids[0])
-  await update($, flowA, () => ({ mapKey: m.key, ids, stage: 'ask', startedAt: 0 }))
+  const flow: Flow = { mapKey: m.key, ids, stage: 'ask', startedAt: 0 }
+  await update($, flowA, () => flow)
+  focusKey($, stripButtons(flow, await recommendHere($)).primary)
+}
+
+/** Closes the start strip and puts the focus back on the selected row. */
+async function closeFlow($: Dollar) {
+  await update($, flowA, () => null)
+  const sel = await read($, selA)
+  if (sel) focusKey($, `sel:${sel}`)
+}
+
+/** Works the ticket in this session by running `/wayfinder <map> <ticket>` here. */
+async function launchHere($: Dollar) {
+  const flow = await read($, flowA)
+  const m = await activeMap($)
+  const t = flow?.ids.length === 1 ? m?.tickets.find(x => x.id === flow.ids[0]) : undefined
+  if (!m || !t) return
+  await update($, pickedA, () => [])
+  await closeFlow($)
+  // A mod may not submit a "/..." prompt; it runs the command instead, which skips the prompt.submit hook.
+  const args = `${mapRef(m)} ${ticketRef(t)}`
+  pendingWork = args
+  await resolveWork($)
+  try {
+    await $.command.run({ command: 'wayfinder', args })
+  } catch (err) {
+    $.ui.toast(`Could not run /wayfinder here: ${String(err).slice(0, 160)}`)
+  }
 }
 
 async function beginHandoff($: Dollar) {
@@ -355,6 +384,7 @@ async function beginHandoff($: Dollar) {
   const path = handoffFile(tmp, m, flow.ids, now)
   const tickets = flow.ids.map(id => m.tickets.find(t => t.id === id)).filter((t): t is Ticket => !!t)
   await update($, flowA, (): Flow => ({ ...flow, stage: 'writing', handoffPath: path, startedAt: now }))
+  focusKey($, `sel:${flow.ids[0]}`)
   const rec: HandoffRecord = { path, mapKey: m.key, ids: flow.ids, at: now }
   await $.store.set(`handoff:${path}`, rec)
   void $.prompt.submit({ text: handoffPrompt(m, tickets, path, skillText) })
@@ -390,7 +420,7 @@ async function launchAll($: Dollar, withHandoff: boolean) {
   const now = await $.clock.now()
   if (ok) await update($, launchesA, ls => [...ls, ...flow.ids.map(id => ({ mapKey: m.key, id, at: now }))])
   await update($, pickedA, () => [])
-  await update($, flowA, () => null)
+  await closeFlow($)
 }
 
 async function discard($: Dollar) {
@@ -399,19 +429,75 @@ async function discard($: Dollar) {
     try { await $.process.run(['rm', '-f', flow.handoffPath]) } catch { /* gone */ }
     await $.store.delete(`handoff:${flow.handoffPath}`)
   }
-  await update($, flowA, () => null)
+  await closeFlow($)
 }
 
+// ---------- keyboard ----------
+
+const focusKey = ($: Dollar, key: string) => {
+  try { void $.ui.focus({ requestId: PANE, key }).catch(() => undefined) } catch { /* no surface draws the pane */ }
+}
+
+/** The start strip's buttons, left to right, and which one is recommended. */
+function stripButtons(f: Flow, recommendHere: boolean): { keys: string[]; primary: string } {
+  if (f.stage === 'ask') {
+    const keys = f.ids.length === 1 ? ['handoff', 'fresh', 'here', 'cancel'] : ['handoff', 'fresh', 'cancel']
+    return { keys, primary: recommendHere && keys.includes('here') ? 'here' : 'handoff' }
+  }
+  if (f.stage === 'writing') return { keys: ['fresh', 'cancel'], primary: 'cancel' }
+  return { keys: ['launch', 'view', 'discard'], primary: 'launch' }
+}
+
+/** Starting here is recommended when this session holds no open ticket and is under 60% of its budget. */
+async function recommendHere($: Dollar): Promise<boolean> {
+  const self = await read($, selfCtxA)
+  if (budgetLevel(self?.tokens, Math.min(opts.contextBudget, self?.window ?? opts.contextBudget)) !== 'ok') return false
+  return (await ownOpenTickets($)).length === 0
+}
+
+/** Open tickets this session holds, by id, across maps. */
+async function ownOpenTickets($: Dollar): Promise<string[]> {
+  const keys = new Set([...(await read($, mineA)), ...(await read($, workingA))])
+  const out: string[] = []
+  for (const m of await read($, mapsA)) for (const t of m.tickets) if (!t.closed && keys.has(`${m.key}|${t.id}`)) out.push(t.id)
+  return out
+}
+
+/** i / k: move between lines, where a line is a ticket row or the start strip under its ticket. */
 async function move($: Dollar, by: 1 | -1) {
   const m = await activeMap($)
   if (!m) return
   const order = visibleOrder(m, await launchSet($), await heldSet($, m))
   if (!order.length) return
-  const cur = await read($, selA)
-  const i = order.indexOf(cur)
-  const next = order[Math.max(0, Math.min(order.length - 1, i < 0 ? 0 : i + by))]
+  const flow = await read($, flowA)
+  const strip = flow && flow.mapKey === m.key ? stripButtons(flow, await recommendHere($)) : undefined
+  const lines: string[] = []
+  for (const id of order) {
+    lines.push(id)
+    if (strip && flow!.ids[0] === id) lines.push('')
+  }
+  const cur = strip && focused && strip.keys.includes(focused) ? '' : await read($, selA)
+  const i = lines.indexOf(cur)
+  const next = lines[Math.max(0, Math.min(lines.length - 1, i < 0 ? 0 : i + by))]!
+  if (next === '') { focusKey($, strip!.primary); return }
   await update($, selA, () => next)
+  focusKey($, `sel:${next}`)
   void $.ui.scroll({ to: { key: `row:${next}` }, in: PANE })
+}
+
+/** j / l: move across the buttons of the focused line. */
+async function side($: Dollar, by: 1 | -1) {
+  const flow = await read($, flowA)
+  const strip = flow ? stripButtons(flow, await recommendHere($)) : undefined
+  let lane: string[]
+  if (strip && focused && strip.keys.includes(focused)) lane = strip.keys
+  else {
+    const sel = await read($, selA)
+    if (!sel) { await move($, 1); return }
+    lane = [`sel:${sel}`, `open:${sel}`, `run:${sel}`]
+  }
+  const i = focused ? lane.indexOf(focused) : -1
+  focusKey($, lane[Math.max(0, Math.min(lane.length - 1, i < 0 ? 0 : i + by))]!)
 }
 
 async function onTick($: Dollar) {
@@ -423,7 +509,10 @@ async function onTick($: Dollar) {
   if (flow?.stage === 'writing' && flow.handoffPath && tick % 7 === 0) {
     if (await $.fs.exists(flow.handoffPath)) {
       const st = await $.fs.stat(flow.handoffPath)
-      if (st.size > 0) await update($, flowA, (f): Flow | null => (f ? { ...f, stage: 'ready' } : f))
+      if (st.size > 0) {
+        await update($, flowA, (f): Flow | null => (f ? { ...f, stage: 'ready' } : f))
+        focusKey($, 'launch')
+      }
     }
   }
   // Only spin while something on screen spins.
@@ -528,6 +617,16 @@ export const register: Register = (on, options) => {
     if (path.includes('/.scratch/') || /\bgh\s+(issue|api)\b/.test(cmd)) void afterToolCall($, path, cmd)
     return ran
   }).catch(($, e, next) => next(e))
+
+  // Track the focus ring for j / l, and let the selection follow it onto a ticket's row.
+  on('ui.focus', { requestId: PANE }, async ($, e, next) => {
+    const r = await next(e)
+    if (r.deny) return r
+    focused = e.element
+    const id = /^(?:sel|open|run):(.+)$/.exec(e.element ?? '')?.[1]
+    if (id && id !== (await read($, selA))) await update($, selA, () => id)
+    return r
+  })
 
   // ---------- drawing ----------
 
@@ -650,18 +749,30 @@ export const register: Register = (on, options) => {
       return out
     }
 
+    const hereFirst = await recommendHere($)
+    const own = await ownOpenTickets($)
     const strip = (f: Flow) => {
       const launcher = effectiveLauncher(opts.launcher, platform)
       const where = launcher === 'iterm' ? 'iTerm tab' : launcher === 'terminal' ? 'Terminal window' : 'command (copied)'
-      const what = f.ids.length > 1 ? `${f.ids.length} tickets (${f.ids.join(' ')}) in new ${where}s` : `${f.ids[0]} in a new ${where}`
+      const { primary } = stripButtons(f, hereFirst)
+      const v = (key: string) => (key === primary ? ('primary' as const) : undefined)
       if (f.stage === 'ask') {
+        const one = f.ids.length === 1
+        const short = launcher === 'iterm' ? 'tab' : launcher === 'terminal' ? 'window' : 'copy'
+        const budget = Math.min(opts.contextBudget, selfCtx?.window ?? opts.contextBudget)
+        const level = budgetLevel(selfCtx?.tokens, budget)
+        const holds = own.length ? `holds ${own.join(' ')}` : 'no ticket'
         return (
           <Box key="strip" flexDirection="column" paddingLeft={2} marginBottom={1}>
-            <Text color={YELLOW}>{`▶ Start ${what}?`}</Text>
+            <Text color={YELLOW}>{one ? `▶ Start ${f.ids[0]}?` : `▶ Start ${f.ids.length} tickets (${f.ids.join(' ')}) in new ${where}s?`}</Text>
+            {one
+              ? <Text color={level !== 'ok' ? LEVEL[level] : own.length ? YELLOW : DIM}>{`this session: ${fmtTokens(selfCtx?.tokens)} of ${fmtTokens(budget)}, ${holds}`}</Text>
+              : null}
             <Box flexDirection="row" gap={1} flexWrap="wrap">
-              <Button key="handoff" hotkey="h" variant="primary" label="handoff + start" onPress={() => beginHandoff($)} />
-              <Button key="fresh" hotkey="f" label="fresh" onPress={() => launchAll($, false)} />
-              <Button key="cancel" hotkey="c" label="cancel" onPress={() => update($, flowA, () => null)} />
+              <Button key="handoff" variant={v('handoff')} label={short === 'copy' ? 'handoff + copy' : `handoff + new ${short}`} onPress={() => beginHandoff($)} />
+              <Button key="fresh" variant={v('fresh')} label={short === 'copy' ? 'copy command' : `fresh ${short}`} onPress={() => launchAll($, false)} />
+              {one ? <Button key="here" variant={v('here')} label="this tab" onPress={() => launchHere($)} /> : null}
+              <Button key="cancel" label="cancel" onPress={() => closeFlow($)} />
             </Box>
           </Box>
         )
@@ -672,8 +783,8 @@ export const register: Register = (on, options) => {
             <Text color={YELLOW}>{`${spin} this session is writing the handoff…`}</Text>
             <Text dimColor>It waits for the current turn to end first.</Text>
             <Box flexDirection="row" gap={1}>
-              <Button key="fresh" hotkey="f" label="skip, start fresh" onPress={() => launchAll($, false)} />
-              <Button key="cancel" hotkey="c" label="cancel" onPress={() => discard($)} />
+              <Button key="fresh" label="skip, start fresh" onPress={() => launchAll($, false)} />
+              <Button key="cancel" label="cancel" onPress={() => discard($)} />
             </Box>
           </Box>
         )
@@ -682,9 +793,9 @@ export const register: Register = (on, options) => {
         <Box key="strip" flexDirection="column" paddingLeft={2} marginBottom={1}>
           <Text color={GREEN}>✓ handoff ready</Text>
           <Box flexDirection="row" gap={1} flexWrap="wrap">
-            <Button key="launch" hotkey="l" variant="primary" label="launch" onPress={() => launchAll($, true)} />
-            <Button key="view" hotkey="v" label="view" onPress={() => (f.handoffPath ? openPath($, f.handoffPath) : undefined)} />
-            <Button key="discard" hotkey="d" label="discard" onPress={() => discard($)} />
+            <Button key="launch" variant="primary" label="launch" onPress={() => launchAll($, true)} />
+            <Button key="view" label="view" onPress={() => (f.handoffPath ? openPath($, f.handoffPath) : undefined)} />
+            <Button key="discard" label="discard" onPress={() => discard($)} />
           </Box>
         </Box>
       )
@@ -796,15 +907,16 @@ export const register: Register = (on, options) => {
         {...(docked ? { position: 'absolute' as const, left: 0, top: Math.max(0, offset + bodyRows - FOOT - 2) } : {})}
       >
         <Box flexDirection="row" columnGap={1}>
-          {hint('k-down', 'j', 'down', () => move($, 1))}
-          {hint('k-up', 'k', 'up', () => move($, -1))}
-          {hint('k-open', 'o', 'open', () => (sel ? openTicket($, sel) : undefined))}
-          {hint('k-refresh', 'g', 'refresh', () => refresh($, { github: true }))}
+          {hint('k-up', 'i', 'up', () => move($, -1))}
+          {hint('k-down', 'k', 'down', () => move($, 1))}
+          {hint('k-left', 'j', 'left', () => side($, -1))}
+          {hint('k-right', 'l', 'right', () => side($, 1))}
+          <Text dimColor>⏎ press</Text>
         </Box>
         <Box flexDirection="row" columnGap={1}>
-          {hint('k-start', 's', picked.length ? `start ${picked.length}` : 'start', () => startPressed($, sel))}
-          {hint('k-pick', 'x', 'pick', () => update($, pickedA, p => (!sel ? p : p.includes(sel) ? p.filter(x => x !== sel) : [...p, sel])))}
-          {hint('k-done', 'r', showDone ? 'hide done' : 'show done', () => update($, showDoneA, v => !v))}
+          {hint('k-pick', 'p', picked.length ? `pick (${picked.length})` : 'pick', () => update($, pickedA, p => (!sel ? p : p.includes(sel) ? p.filter(x => x !== sel) : [...p, sel])))}
+          {hint('k-done', 'd', showDone ? 'hide done' : 'show done', () => update($, showDoneA, v => !v))}
+          {hint('k-refresh', 'r', 'refresh', () => refresh($, { github: true }))}
         </Box>
       </Box>
     )

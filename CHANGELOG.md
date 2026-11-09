@@ -5,10 +5,13 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Added
+- **this tab** in the start confirmation runs `/wayfinder <map> <ticket>` in the current session. The confirmation shows this session's context use and suggests this tab when it is under 60% of its budget and holds no ticket.
 - A session started with `/wayfinder <map> <ticket>` (as ▶ starts them) shows that ticket as its own from the first turn, and every other tab shows it as claimed, before the claim reaches the ticket file.
 - Context bars: this session's context fill and that of each other tab holding a ticket, against a per-session budget (`contextBudget`, default 200k).
 
 ### Changed
+- Keys: `i` / `k` move up and down, `j` / `l` move across a row's buttons, Enter presses the focused button, `r` refreshes, `d` shows resolved tickets and `p` picks. `o`, `s`, `g` and `x` are gone.
+- Confirmation buttons no longer have letter keys. Click them, or focus one and press Enter. They are now named **handoff + new tab** and **fresh tab**.
 - Tokyo Night colors (from LazyVim), with row tints mixed into the pane's grey, and a bold outline around the pane.
 - Key hints sit in a bar pinned to the bottom of the docked pane.
 - Context bars and claimed rows name tickets and context use instead of short session ids.

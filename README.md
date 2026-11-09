@@ -10,11 +10,16 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Claude Code 2.1.275+](https://img.shields.io/badge/Claude%20Code-2.1.275%2B-d97757)
 
-<!--
-  DEMO: record ~10s and save as assets/demo.gif, then replace this comment with:
-  <img src="assets/demo.gif" width="820" alt="Pressing ▶ on a ready ticket writes a handoff and opens a new iTerm tab working it">
-  See assets/README.md for how to record it.
--->
+<table>
+  <tr>
+    <td width="50%"><img src="assets/demo.gif" alt="Pressing ▶ on a ready ticket and choosing fresh tab opens a new iTerm tab working it, and the first tab shows the ticket as claimed"></td>
+    <td width="50%"><img src="assets/sidebar.png" alt="The sidebar beside the chat, with the start confirmation open under a ready ticket"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Start a ticket in a new tab</sub></td>
+    <td align="center"><sub>The map beside the chat</sub></td>
+  </tr>
+</table>
 
 </div>
 
@@ -39,6 +44,7 @@
 - **See what can move.** Open tickets are grouped into Ready, Claimed and Blocked, and colored by type.
 - **Start work in one click.** `▶` opens a new terminal tab running `/wayfinder <map> <ticket>`.
 - **Keep context.** Before launching, this session can write a handoff note for the new one.
+- **Run here or in a new tab.** Start a ticket in this session, or in a new tab with or without a handoff.
 - **Run several at once.** Pick a few ready tickets and start them together with one shared handoff.
 - **Keep sessions small.** A bar per session shows its context against a 200k budget, following the wayfinder rule of one ticket per session and under 200k tokens. Bars turn yellow at 60% and red when over.
 - **Stay in sync.** Every tab sees claims and resolutions from the others within seconds. Tickets flash when they become unblocked.
@@ -75,25 +81,32 @@ The sidebar opens on its own when the working directory has a map, and `/wayfind
 - **Type chip.** The word at the left is the ticket type (`grill`, `proto`, `rsrch`, `task`) in its color. A solid chip means the ticket needs you (HITL). Colored text on a dark chip means an agent can run it alone (AFK).
 - **Status.** Claimed tickets show a spinner and who holds them: `you` for this session, the context it has used (such as `181k`) for another tab running this mod, or `tab` otherwise. Blocked tickets show the ids they wait on, colored by those tickets' types.
 - **Context.** One bar for this session (`you`), and one for each other tab running the mod that holds a ticket on this map. Each bar is labelled with the ticket its session is working on. Each tab reports its own figures after every turn.
-- **Footer.** The map's "Not yet specified" items and resolved count sit at the bottom. Press `r` to list resolved tickets.
+- **Footer.** The map's "Not yet specified" items and resolved count sit at the bottom. Press `d` to list resolved tickets.
 
 ### Buttons and keys
 
 Each row ends with `md` (or `gh`), which opens the ticket file in your editor or the issue in the browser, and `▶`, which starts a session on it. `▶` only works on ready tickets. Pressing it opens a confirmation under the row:
 
-| Button | Key | What it does |
-|---|---|---|
-| handoff + start | `h` | This session writes a handoff note, then offers **launch** (`l`), **view** (`v`) and **discard** (`d`) |
-| fresh | `f` | Launch now with no handoff |
-| cancel | `c` | Close the confirmation |
+| Button | What it does |
+|---|---|
+| handoff + new tab | This session writes a handoff note, then offers **launch**, **view** and **discard** |
+| fresh tab | Open a new tab now, with no handoff |
+| this tab | Run `/wayfinder <map> <ticket>` in this session, keeping its context |
+| cancel | Close the confirmation |
+
+The line above the buttons shows this session's context use and whether it already holds a ticket. When it is under 60% of the budget and holds no ticket, **this tab** is highlighted as the suggested choice. Otherwise **handoff + new tab** is. "this tab" is not offered when several tickets are picked.
+
+Every button works with a click, or with Enter once the focus is on it.
 
 With the pane focused (`ctrl+x`):
 
 | Key | Action | Key | Action |
 |---|---|---|---|
-| `j` / `k` | move down / up | `x` | pick a ready ticket (for multi-start) |
-| `o` | open ticket | `r` | show / hide resolved |
-| `s` | start selected or picked | `g` | refresh now |
+| `i` / `k` | move up / down | `p` | pick a ready ticket (for multi-start) |
+| `j` / `l` | move left / right across a row's buttons | `d` | show / hide resolved |
+| Enter | press the focused button | `r` | refresh now |
+
+Tab and the arrow keys also move the focus. To start several tickets, pick them with `p`, then press `▶` on any of them.
 
 The mouse wheel scrolls the pane.
 

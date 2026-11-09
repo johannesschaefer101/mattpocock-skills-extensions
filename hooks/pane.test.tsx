@@ -79,7 +79,12 @@ test('draws ready, claimed and blocked tickets, and asks before starting one', a
   expect(await ui.find({ type: 'Text', text: /also waits 07/ })).toBeDefined()
 
   await ui.press({ key: 'run:07' })
-  expect(await ui.find({ type: 'Text', text: /Start 07 in a new iTerm tab\?/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Start 07\?/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /this session: 92k of 200k, no ticket/ })).toBeDefined()
+  expect((await ui.find({ type: 'Button', key: 'handoff' }))?.props.label).toBe('handoff + new tab')
+  // Under 60% of the budget with no ticket of its own, this session is the recommended place.
+  expect((await ui.find({ type: 'Button', key: 'here' }))?.props.variant).toBe('primary')
+  expect((await ui.find({ type: 'Button', key: 'handoff' }))?.props.variant).toBeUndefined()
 
   await ui.press({ key: 'handoff' })
   expect(prompts.length).toBe(1)
@@ -98,6 +103,7 @@ test('draws ready, claimed and blocked tickets, and asks before starting one', a
   expect(foot?.props.top).toBe(38)
   expect(foot?.props.width).toBe(48)
   expect(await scrolled.find({ type: 'Button', key: 'k-refresh' })).toBeDefined()
+  expect((await scrolled.find({ type: 'Button', key: 'k-refresh' }))?.props.hotkey).toBe('r')
   await scrolled.unmount()
 })
 
@@ -155,5 +161,21 @@ test('a ticket another tab holds by its /wayfinder prompt is claimed here too', 
   expect(await ui.find({ type: 'Text', text: /40k$/ })).toBeDefined() // its context, on 07's row
   await ui.press({ key: 'run:07' })
   expect(toasts.join()).toContain('07 is not ready to start')
+  await ui.unmount()
+})
+
+test('"this tab" starts the ticket in this session, which then holds it', async ($, on) => {
+  const runs: string[] = []
+  const { clock } = tab(on, 'sess-abc', {})
+  on('command.run', { command: 'wayfinder' }, (_, e) => { runs.push(`/${e.command} ${e.args}`); return { text: '' } })
+  await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
+  await clock.advance(10)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'run:07' })
+  await ui.press({ key: 'here' })
+  await clock.advance(10)
+  expect(runs).toEqual(['/wayfinder .scratch/wayfinder/map.md 07'])
+  expect(await ui.find({ type: 'Text', text: /Start 07/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /you$/ })).toBeDefined()
   await ui.unmount()
 })
