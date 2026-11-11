@@ -29,11 +29,11 @@ A blocked ticket is not started in a new tab or pane.
 `herdr/tickets` is the same board as a pane of herdr's own, with no Claude session behind it: a place to watch the tickets and the agents working on them, and to start more.
 
 ```
-cp -R herdr/tickets ~/.config/herdr-app/mods/tickets
+./scripts/install-herdr.sh
 herdr-app do pane.split --direction right --mod tickets
 ```
 
-The second line puts the board to the right of the focused pane; `herdr-app do tab.new --name Tickets --mod tickets` gives it a tab of its own. It shows the repository of the terminals beside it; click the repository name in its header to pick another folder.
+The first line copies the mod into `~/.config/herdr-app/mods/tickets`; run it again after an update and open boards reload. The second line puts the board to the right of the focused pane; `herdr-app do tab.new --name Tickets --mod tickets` gives it a tab of its own. It shows the repository of the terminals beside it; click the repository name in its header to pick another folder.
 
 Select a ticket and press **start agent** (or Enter): `claude '/implement <ticket>'` starts in the project folder, and the ticket's row shows that agent's status from then on. **Agents open in** chooses where:
 
@@ -88,7 +88,19 @@ claude plugin validate .
 claude plugin test .
 ./scripts/build-herdr.sh     # after a change to hooks/tickets.ts: rewrites herdr/tickets/tickets.js
 herdr-app check herdr/tickets
+./scripts/install-herdr.sh --watch   # macOS, once: herdr follows herdr/tickets from then on
 ```
+
+herdr reloads a mod when a file in `~/.config/herdr-app/mods/<name>` is saved, but not through a symlink to this folder, so the mod there is a copy. `install-herdr.sh --watch` makes the copy and adds a launchd agent, `ticket-board.herdr-mod`, that copies again whenever `main.js`, `tickets.js` or `mod.json` in `herdr/tickets` changes: a save, a build, a checkout or a pull reaches open boards within a second or two. A broken save shows under `errors` in `herdr-app status` while the boards keep the last good version.
+
+The agent is not part of the repository. It lives in `~/Library/LaunchAgents/ticket-board.herdr-mod.plist`, holds this checkout's path (run the script again if the folder moves) and starts at login. To remove it:
+
+```
+launchctl bootout gui/$(id -u)/ticket-board.herdr-mod
+rm ~/Library/LaunchAgents/ticket-board.herdr-mod.plist
+```
+
+`herdr-app check` writes `gpui-kit.d.ts` and `jsconfig.json` into the folder it checks; `.gitignore` keeps them out.
 
 ## License
 
