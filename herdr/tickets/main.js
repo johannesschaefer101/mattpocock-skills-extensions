@@ -202,9 +202,11 @@ export default class Tickets extends View {
     if (!space || space.machine) { notify({ title: "Tickets start agents on this computer only", level: "error" }); return; }
     const args = ["run", "--bg", "--json", "--no-notify", "--cwd", this.root,
       "--label", `ticket-board.ticket=${t.ref}`, "--label", `ticket-board.root=${this.root}`, "--label", `ticket-board.mode=${this.mode}`];
-    // A terminal with herdr's labels gets a pane there; without them it runs unseen until it is shown.
+    // A terminal with herdr's labels gets a pane there. Without them it has none until it is shown: it
+    // starts as a sub-agent of the shared pane's own agent, so herdr's agents list has it under that one.
     if (this.mode === "tab" || !tab) args.push("--label", `herdr.space=${local(space.id)}`);
     else if (this.mode === "split" || !host) args.push("--label", `herdr.space=${local(space.id)}`, "--label", `herdr.tab=${local(tab)}`);
+    else args.push("--parent", host.terminal, "--outlive-parent");
     args.push("--", ...this.argv(), `/${this.command()} ${t.ref}`);
     cx.spawn(async (cx) => {
       try {

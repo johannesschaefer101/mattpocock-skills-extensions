@@ -45,7 +45,7 @@ Select a ticket and press **start agent** (or Enter): `claude '/implement <ticke
 
 The board stays where it is in all three. **show agent** goes to a running agent, **stop** ends it after a question, **open** opens the ticket. Keys while the board has the keyboard: `↑`/`↓` (or `i`/`k`) move, Enter or `n` starts or shows, `o` opens, `r` refreshes, Esc deselects.
 
-- With One pane, the agents the shared pane is not showing have no pane of their own, so herdr's own agents list leaves them out; the board lists them, and lists them again after it was closed and reopened. `hc ls` shows them too.
+- With One pane, the first agent owns the shared pane and the later ones start as its sub-agents: herdr's own agents list shows them under it, and they keep running when it ends.
 - An agent started from the Claude Code sidebar's "new pane" shows up on the board as well.
 - GitHub is read every five minutes, on refresh, and when an agent stops working; local ticket files when they change.
 - Props, as in `--props '{"folder":"/path/to/project"}'`: `folder` (the project), `command` (the slash command, default `implement`), `argv` (the agent program, default `["claude"]`).
