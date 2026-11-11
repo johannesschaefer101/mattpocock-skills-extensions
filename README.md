@@ -24,6 +24,32 @@ The sidebar opens by itself when the project has open tickets; `/tickets` opens 
 
 A blocked ticket is not started in a new tab or pane.
 
+## The board as a herdr pane
+
+`herdr/tickets` is the same board as a pane of herdr's own, with no Claude session behind it: a place to watch the tickets and the agents working on them, and to start more.
+
+```
+cp -R herdr/tickets ~/.config/herdr-app/mods/tickets
+herdr-app do pane.split --direction right --mod tickets
+```
+
+The second line puts the board to the right of the focused pane; `herdr-app do tab.new --name Tickets --mod tickets` gives it a tab of its own. It shows the repository of the terminals beside it; click the repository name in its header to pick another folder.
+
+Select a ticket and press **start agent** (or Enter): `claude '/implement <ticket>'` starts in the project folder, and the ticket's row shows that agent's status from then on. **Agents open in** chooses where:
+
+| Choice | The agent gets |
+| --- | --- |
+| One pane | one pane beside the board, shared by all agents started this way; the row of agents at the top of the board picks the one it shows |
+| Split | a pane of its own in the board's tab |
+| Tab | a tab of its own, named after the ticket, in the board's space |
+
+The board stays where it is in all three. **show agent** goes to a running agent, **stop** ends it after a question, **open** opens the ticket. Keys while the board has the keyboard: `↑`/`↓` (or `i`/`k`) move, Enter or `n` starts or shows, `o` opens, `r` refreshes, Esc deselects.
+
+- With One pane, the agents the shared pane is not showing have no pane of their own, so herdr's own agents list leaves them out; the board lists them, and lists them again after it was closed and reopened. `hc ls` shows them too.
+- An agent started from the Claude Code sidebar's "new pane" shows up on the board as well.
+- GitHub is read every five minutes, on refresh, and when an agent stops working; local ticket files when they change.
+- Props, as in `--props '{"folder":"/path/to/project"}'`: `folder` (the project), `command` (the slash command, default `implement`), `argv` (the agent program, default `["claude"]`).
+
 ## Install
 
 At the prompt of a terminal session:
@@ -60,6 +86,8 @@ One GraphQL request per refresh (5 of the 5,000 points an hour) and no REST call
 claude --plugin-dir .        # run it from this folder
 claude plugin validate .
 claude plugin test .
+./scripts/build-herdr.sh     # after a change to hooks/tickets.ts: rewrites herdr/tickets/tickets.js
+herdr-app check herdr/tickets
 ```
 
 ## License
