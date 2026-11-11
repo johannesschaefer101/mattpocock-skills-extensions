@@ -1,0 +1,13 @@
+{
+  "name": "to-tickets-sidebar",
+  "owner": {
+    "name": "Johannes Schaefer"
+  },
+  "plugins": [
+    {
+      "name": "ticket-board",
+      "source": "./",
+      "description": "A sidebar of the open tickets /to-tickets published: ready, needs you, claimed and blocked, with buttons to open a ticket or start implementing it in this tab or a new one."
+    }
+  ]
+}

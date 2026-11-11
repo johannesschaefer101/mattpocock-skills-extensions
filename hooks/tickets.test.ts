@@ -1,0 +1,77 @@
+import { expect, test } from 'claude-code/testing'
+
+import { effectiveLauncher, githubSets, launchArgv, localSet, repoOfRemote, shellCommand, statusOf, visibleOrder, type GqlIssue } from './tickets'
+
+const labels = (...names: string[]) => ({ nodes: names.map(name => ({ name })) })
+const spec = { number: 53, title: 'Game spec', url: 'u53', labels: labels('ready-for-agent'), subIssuesSummary: { total: 4, completed: 1 } }
+const issue = (number: number, over: Partial<GqlIssue> = {}): GqlIssue => ({
+  number,
+  title: `Ticket ${number}`,
+  url: `u${number}`,
+  labels: labels('ready-for-agent'),
+  assignees: { nodes: [] },
+  parent: spec,
+  subIssuesSummary: { total: 0 },
+  blockedBy: { nodes: [] },
+  blocking: { nodes: [] },
+  ...over,
+})
+
+test('sub-issues group under their parent, by status', async () => {
+  const sets = githubSets('o/r', [
+    issue(53, { parent: null, subIssuesSummary: { total: 4 } }),
+    issue(58, { blockedBy: { nodes: [{ number: 57, state: 'OPEN' }] } }),
+    issue(57, { blockedBy: { nodes: [{ number: 56, state: 'CLOSED' }] }, blocking: { nodes: [{ number: 58, state: 'OPEN' }] } }),
+    issue(73, { labels: labels('ready-for-human') }),
+    issue(60, { assignees: { nodes: [{ login: 'jo' }] } }),
+  ])
+
+  expect(sets.length).toBe(1)
+  const set = sets[0]!
+  expect(set.title).toBe('Game spec')
+  expect(set.done).toBe(1)
+  expect(set.tickets.map(t => `${t.id} ${statusOf(t)}`)).toEqual(['#57 ready', '#58 blocked', '#60 claimed', '#73 human'])
+  expect(set.tickets[0]!.unblocks).toEqual(['#58'])
+  expect(visibleOrder(set)).toEqual(['#57', '#73', '#60', '#58'])
+})
+
+test('wayfinder tickets and unlabelled loose issues are left out', async () => {
+  const map = { ...spec, number: 1, labels: labels('wayfinder:map') }
+  const sets = githubSets('o/r', [
+    issue(2, { parent: map, labels: labels('wayfinder:task') }),
+    issue(3, { parent: null, labels: labels('bug') }),
+    issue(4, { parent: null }),
+  ])
+
+  expect(sets.map(s => s.key)).toEqual(['github:o/r'])
+  expect(sets[0]!.tickets.map(t => t.id)).toEqual(['#4'])
+})
+
+test('local ticket files follow the /to-tickets template', async () => {
+  const file = (name: string, text: string) => ({ name, text, path: `/p/${name}`, relPath: `.scratch/f/issues/${name}` })
+  const set = localSet('/p', 'dark-mode', [
+    file('01-toggle.md', '# 01: Toggle\n\n**Blocked by:** None (can start immediately)\n\n**Status:** done\n'),
+    file('02-persist.md', '# 02: Persist the choice\n\n**Blocked by:** 01\n\n**Status:** ready-for-agent\n'),
+    file('03-sync.md', '# 03: Sync\n\n**Blocked by:** 01, 02\n\n**Status:** ready-for-human\n'),
+  ])
+
+  expect(set.done).toBe(1)
+  expect(set.tickets.map(t => `${t.id} ${t.title}: ${statusOf(t)}`)).toEqual(['02 Persist the choice: ready', '03 Sync: blocked'])
+  expect(set.tickets[1]!.blockedBy).toEqual(['02'])
+  expect(set.tickets[0]!.unblocks).toEqual(['03'])
+})
+
+test('a new tab starts in the given folder, quoted', async () => {
+  const cmd = shellCommand("/Users/jo/it's here", '/implement #57')
+
+  expect(cmd).toBe(`cd '/Users/jo/it'\\''s here' && claude '/implement #57'`)
+  expect(launchArgv('iterm', cmd)!.join('\n')).toContain(`tell made to write text "cd '/Users/jo/it'\\\\''s here' && claude '/implement #57'"`)
+  expect(effectiveLauncher('iterm', 'Linux')).toBe('copy')
+  expect(launchArgv('copy', cmd)).toBeUndefined()
+})
+
+test('the repository is read from the origin remote', async () => {
+  expect(repoOfRemote('git@github.com:jo/some-repo.git\n')).toBe('jo/some-repo')
+  expect(repoOfRemote('https://github.com/jo/dotted.name')).toBe('jo/dotted.name')
+  expect(repoOfRemote('git@gitlab.com:jo/x.git')).toBeUndefined()
+})

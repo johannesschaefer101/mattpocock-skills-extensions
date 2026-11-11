@@ -1,0 +1,44 @@
+{
+  "name": "ticket-board",
+  "version": "0.1.0",
+  "description": "A sidebar of the open tickets /to-tickets published: ready, needs you, claimed and blocked, with buttons to open a ticket or start implementing it in this tab or a new one.",
+  "author": {
+    "name": "Johannes Schaefer",
+    "url": "https://github.com/johannesschaefer101"
+  },
+  "homepage": "https://github.com/johannesschaefer101/to-tickets-sidebar",
+  "repository": "https://github.com/johannesschaefer101/to-tickets-sidebar",
+  "license": "MIT",
+  "keywords": [
+    "to-tickets",
+    "sidebar",
+    "tickets",
+    "github-issues"
+  ],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "launcher": {
+      "type": "string",
+      "title": "Where new sessions open",
+      "description": "iterm opens a new iTerm tab, terminal a new Terminal.app window (both macOS only), copy puts the command on the clipboard. Other systems always copy. The new session starts in the folder this session works in.",
+      "options": [
+        "iterm",
+        "terminal",
+        "copy"
+      ],
+      "default": "iterm"
+    },
+    "refreshSeconds": {
+      "type": "number",
+      "title": "GitHub refresh (seconds)",
+      "description": "How often to re-read the tickets from GitHub while the sidebar is open, at least 30. All sessions on a repository share one read. Local ticket files are checked every few seconds.",
+      "default": 300
+    },
+    "implementCommand": {
+      "type": "string",
+      "title": "Command a ticket is started with",
+      "description": "The slash command, without the slash, run on the ticket's reference: in a new tab, or filled into this tab's prompt box.",
+      "default": "implement"
+    }
+  }
+}
