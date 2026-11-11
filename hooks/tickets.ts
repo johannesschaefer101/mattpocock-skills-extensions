@@ -144,14 +144,28 @@ export const appleQuote = (s: string) => `"${s.replace(/\\/g, '\\\\').replace(/"
 /** The line the new tab runs: Claude Code started in `dir` on the implement command for the ticket. */
 export const shellCommand = (dir: string, prompt: string) => `cd ${shellQuote(dir)} && claude ${shellQuote(prompt)}`
 
-export type Launcher = 'iterm' | 'terminal' | 'copy'
+export type Launcher = 'iterm' | 'terminal' | 'herdr' | 'copy'
 
-/** iTerm and Terminal.app exist only on macOS (`uname -s` says Darwin); elsewhere the command is copied. */
-export const effectiveLauncher = (launcher: Launcher, platform: string): Launcher =>
-  launcher === 'copy' || platform === 'Darwin' ? launcher : 'copy'
+/**
+ * herdr runs wherever its window does, and a session inside one of its panes (`inHerdr`) takes it
+ * in place of the default, iterm. iTerm and Terminal.app exist only on macOS (`uname -s` says
+ * Darwin); elsewhere the command is copied.
+ */
+export const effectiveLauncher = (launcher: Launcher, platform: string, inHerdr = false): Launcher => {
+  if (launcher === 'herdr' || (launcher === 'iterm' && inHerdr)) return 'herdr'
+  return launcher === 'copy' || platform === 'Darwin' ? launcher : 'copy'
+}
 
-/** osascript argv for a new tab running `cmd`. The line is written to the tab just made, by reference, never to whichever tab is in front. */
-export function launchArgv(launcher: Launcher, cmd: string): string[] | undefined {
+/**
+ * argv that starts Claude Code in `dir` on `prompt`. herdr splits the focused pane and takes the
+ * folder and the program as they are, no shell between. The others are osascript for a new tab:
+ * the line is written to the tab just made, by reference, never to whichever tab is in front.
+ */
+export function launchArgv(launcher: Launcher, dir: string, prompt: string): string[] | undefined {
+  if (launcher === 'herdr') {
+    return ['herdr-app', 'do', 'terminal.open', '--place', 'right', '--folder', dir, '--argv', JSON.stringify(['claude', prompt])]
+  }
+  const cmd = shellCommand(dir, prompt)
   if (launcher === 'iterm') {
     return [
       'osascript',
@@ -173,4 +187,13 @@ export function launchArgv(launcher: Launcher, cmd: string): string[] | undefine
     return ['osascript', '-e', 'tell application "Terminal"', '-e', 'activate', '-e', `do script ${appleQuote(cmd)}`, '-e', 'end tell']
   }
   return undefined
+}
+
+/** Why `herdr-app do` failed: `{ "error": … }` on stdout for a refused command, stderr when no window is open. */
+export function herdrError(stdout: string, stderr: string): string {
+  try {
+    const error = (JSON.parse(stdout) as { error?: unknown }).error
+    if (typeof error === 'string' && error) return error
+  } catch { /* not JSON */ }
+  return stderr.trim() || stdout.trim()
 }

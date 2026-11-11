@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { effectiveLauncher, githubSets, launchArgv, localSet, repoOfRemote, shellCommand, statusOf, visibleOrder, type GqlIssue } from './tickets'
+import { effectiveLauncher, githubSets, herdrError, launchArgv, localSet, repoOfRemote, shellCommand, statusOf, visibleOrder, type GqlIssue } from './tickets'
 
 const labels = (...names: string[]) => ({ nodes: names.map(name => ({ name })) })
 const spec = { number: 53, title: 'Game spec', url: 'u53', labels: labels('ready-for-agent'), subIssuesSummary: { total: 4, completed: 1 } }
@@ -65,9 +65,32 @@ test('a new tab starts in the given folder, quoted', async () => {
   const cmd = shellCommand("/Users/jo/it's here", '/implement #57')
 
   expect(cmd).toBe(`cd '/Users/jo/it'\\''s here' && claude '/implement #57'`)
-  expect(launchArgv('iterm', cmd)!.join('\n')).toContain(`tell made to write text "cd '/Users/jo/it'\\\\''s here' && claude '/implement #57'"`)
+  expect(launchArgv('iterm', "/Users/jo/it's here", '/implement #57')!.join('\n')).toContain(`tell made to write text "cd '/Users/jo/it'\\\\''s here' && claude '/implement #57'"`)
   expect(effectiveLauncher('iterm', 'Linux')).toBe('copy')
-  expect(launchArgv('copy', cmd)).toBeUndefined()
+  expect(launchArgv('copy', "/Users/jo/it's here", '/implement #57')).toBeUndefined()
+})
+
+test('a new herdr pane gets the folder and the command as they are', async () => {
+  const argv = launchArgv('herdr', "/Users/jo/it's here", '/implement #57')!
+
+  expect(argv.slice(0, 7)).toEqual(['herdr-app', 'do', 'terminal.open', '--place', 'right', '--folder', "/Users/jo/it's here"])
+  expect(argv.slice(7)).toEqual(['--argv', '["claude","/implement #57"]'])
+})
+
+test('herdr launches on any system, and by itself inside herdr', async () => {
+  expect(effectiveLauncher('herdr', 'Linux')).toBe('herdr')
+  expect(effectiveLauncher('herdr', 'Darwin')).toBe('herdr')
+  expect(effectiveLauncher('iterm', 'Linux', true)).toBe('herdr')
+  expect(effectiveLauncher('iterm', 'Darwin', true)).toBe('herdr')
+  expect(effectiveLauncher('iterm', 'Darwin')).toBe('iterm')
+  expect(effectiveLauncher('terminal', 'Darwin', true)).toBe('terminal')
+  expect(effectiveLauncher('terminal', 'Linux', true)).toBe('copy')
+  expect(effectiveLauncher('copy', 'Darwin', true)).toBe('copy')
+})
+
+test('a failed herdr launch says why', async () => {
+  expect(herdrError('{\n  "error": "cannot start a terminal: no such folder"\n}\n', '')).toBe('cannot start a terminal: no such folder')
+  expect(herdrError('', 'herdr-app: no Herdr window at /h/herdr-app.sock\n')).toBe('herdr-app: no Herdr window at /h/herdr-app.sock')
 })
 
 test('the repository is read from the origin remote', async () => {

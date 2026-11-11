@@ -18,11 +18,11 @@ The sidebar opens by itself when the project has open tickets; `/tickets` opens 
 | --- | --- |
 | `i` / `k` | move up / down |
 | `o` | open the ticket on GitHub (or its file) |
-| `n` | start `/implement <ticket>` in a new iTerm tab, in the folder this session works in |
+| `n` | start `/implement <ticket>` in a new iTerm tab or herdr pane, in the folder this session works in |
 | `g` | put `/implement <ticket>` in this session's prompt box |
 | `r` | refresh |
 
-A blocked ticket is not started in a new tab.
+A blocked ticket is not started in a new tab or pane.
 
 ## Install
 
@@ -40,13 +40,13 @@ claude plugin install ticket-board --marketplace johannesschaefer101/to-tickets-
 
 In the desktop app, where `/plugin` does not run: click + next to the prompt box, then Plugins, Add marketplace with `johannesschaefer101/to-tickets-sidebar`, then Add plugin.
 
-It needs the [`gh` CLI](https://cli.github.com), signed in, for GitHub tickets. New tabs need macOS with iTerm or Terminal.app; elsewhere the command is copied to the clipboard.
+It needs the [`gh` CLI](https://cli.github.com), signed in, for GitHub tickets. New tabs need macOS with iTerm or Terminal.app; elsewhere the command is copied to the clipboard. New panes need herdr with its window open and `herdr-app` on the `PATH`, on any system.
 
 ## Settings
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `launcher` | `iterm` | Where new sessions open: `iterm`, `terminal`, or `copy` |
+| `launcher` | `iterm` | Where new sessions open: `iterm`, `terminal`, `herdr` (a split to the right of the focused pane, which closes when that session ends), or `copy`. A session inside herdr opens a herdr pane while this is `iterm`; `terminal` and `copy` are kept |
 | `refreshSeconds` | `300` | How often GitHub is re-read while the sidebar is open (at least 30) |
 | `implementCommand` | `implement` | The slash command a ticket is started with |
 

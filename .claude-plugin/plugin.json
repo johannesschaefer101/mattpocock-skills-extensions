@@ -1,6 +1,6 @@
 {
   "name": "ticket-board",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A sidebar of the open tickets /to-tickets published: ready, needs you, claimed and blocked, with buttons to open a ticket or start implementing it in this tab or a new one.",
   "author": {
     "name": "Johannes Schaefer",
@@ -20,10 +20,11 @@
     "launcher": {
       "type": "string",
       "title": "Where new sessions open",
-      "description": "iterm opens a new iTerm tab, terminal a new Terminal.app window (both macOS only), copy puts the command on the clipboard. Other systems always copy. The new session starts in the folder this session works in.",
+      "description": "iterm opens a new iTerm tab, terminal a new Terminal.app window (both macOS only, other systems copy), herdr a new herdr pane beside the focused one (any system), copy puts the command on the clipboard. Inside herdr, iterm opens a herdr pane too. The new session starts in the folder this session works in.",
       "options": [
         "iterm",
         "terminal",
+        "herdr",
         "copy"
       ],
       "default": "iterm"

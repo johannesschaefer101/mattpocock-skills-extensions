@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Ticket, TicketSet } from '../types'
-import { GROUPS, ISSUES_QUERY, effectiveLauncher, fit, githubSets, launchArgv, localSet, repoOfRemote, shellCommand, statusOf, visibleOrder, type GqlIssue, type Launcher, type LocalFile, type Status } from './tickets'
+import { GROUPS, ISSUES_QUERY, effectiveLauncher, fit, githubSets, herdrError, launchArgv, localSet, repoOfRemote, shellCommand, statusOf, visibleOrder, type GqlIssue, type Launcher, type LocalFile, type Status } from './tickets'
 
 const PANE = 'tickets'
 const LOCAL_MS = 5000
@@ -37,7 +37,7 @@ let opts: Opts = { refreshSeconds: 300, implementCommand: 'implement', launcher:
 function readOptions(options: unknown): Opts {
   const o = (options ?? {}) as Partial<Opts>
   return {
-    launcher: o.launcher === 'terminal' || o.launcher === 'copy' ? o.launcher : 'iterm',
+    launcher: o.launcher === 'terminal' || o.launcher === 'herdr' || o.launcher === 'copy' ? o.launcher : 'iterm',
     refreshSeconds: typeof o.refreshSeconds === 'number' && o.refreshSeconds >= 30 ? o.refreshSeconds : 300,
     implementCommand: typeof o.implementCommand === 'string' && o.implementCommand.trim() ? o.implementCommand.trim().replace(/^\//, '') : 'implement',
   }
@@ -47,6 +47,7 @@ type Dollar = EngineInterface
 // Module variables start over on a reload; everything drawn lives in $.state.
 let root = ''
 let platform = '' // `uname -s`: Darwin, Linux, …
+let inHerdr = false // herdr gives each of its terminals an HC_TERMINAL_ID
 let ghRepo: string | null | undefined // undefined: not checked yet; null: none
 let lastGh = 0 // when the GitHub tickets held here were read, by this session or another
 let paneOpen = false
@@ -186,18 +187,28 @@ async function implementTicket($: Dollar, t: Ticket | undefined) {
   catch (err) { $.ui.toast(`Could not fill the prompt: ${String(err).slice(0, 160)}`) }
 }
 
-/** Starts a session of its own on the ticket, in a new tab opened in this session's folder. */
+/** Starts a session of its own on the ticket, in a new tab or pane opened in this session's folder. */
 async function launchTicket($: Dollar, t: Ticket | undefined) {
   if (!t) return
   if (statusOf(t) === 'blocked') { $.ui.toast(`${t.id} still waits on ${t.blockedBy.join(' ')}: not started.`); return }
   // The folder this session works in, read at the press; the project root where that fails.
   const dir = (await $.session.cwd().catch(() => '')) || root
-  const cmd = shellCommand(dir, `/${opts.implementCommand} ${t.ref}`)
-  const launcher = effectiveLauncher(opts.launcher, platform)
-  const argv = launchArgv(launcher, cmd)
+  const prompt = `/${opts.implementCommand} ${t.ref}`
+  const launcher = effectiveLauncher(opts.launcher, platform, inHerdr)
+  const argv = launchArgv(launcher, dir, prompt)
   if (!argv) {
-    const r = await $.ui.copy({ text: cmd })
+    const r = await $.ui.copy({ text: shellCommand(dir, prompt) })
     $.ui.toast(r.isCopied ? `Copied the command that starts ${t.id}.` : 'Could not copy the launch command.')
+    return
+  }
+  if (launcher === 'herdr') {
+    try {
+      const r = await $.process.run(argv, { timeoutMs: 20000 })
+      if (r.exitCode === 0) $.ui.toast(`Started ${t.id} in a new herdr pane, in ${dir}.`)
+      else $.ui.toast(`Could not open a herdr pane: ${herdrError(r.stdout, r.stderr).slice(0, 200) || 'exit ' + r.exitCode}`)
+    } catch (err) {
+      $.ui.toast(`Could not run herdr-app: ${String(err)}`)
+    }
     return
   }
   const app = launcher === 'iterm' ? 'iTerm' : 'Terminal'
@@ -234,6 +245,7 @@ export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     root = (await $.session.root().catch(() => e.cwd)) || e.cwd
     try { platform = (await $.process.run(['uname', '-s'], { timeoutMs: 5000 })).stdout.trim() } catch { platform = '' }
+    inHerdr = Boolean(await $.env.get('HC_TERMINAL_ID').catch(() => undefined))
     await $.command.register({ name: 'tickets', description: 'Show the open /to-tickets tickets in a sidebar' })
     $.clock.every(LOCAL_MS, () => { void refresh($) })
     // The pane opens by itself only where there is a ticket to show.
@@ -298,8 +310,8 @@ export const register: Register = (on, options) => {
     const room = Math.max(6, W - 2 - (idW + 2) - 1 - CELL - 1)
     const title = (id: string) => set.tickets.find(t => t.id === id)?.title ?? ''
 
-    const launcher = effectiveLauncher(opts.launcher, platform)
-    const newLabel = launcher === 'iterm' ? 'new tab' : launcher === 'terminal' ? 'new window' : 'copy command'
+    const launcher = effectiveLauncher(opts.launcher, platform, inHerdr)
+    const newLabel = launcher === 'iterm' ? 'new tab' : launcher === 'terminal' ? 'new window' : launcher === 'herdr' ? 'new pane' : 'copy command'
 
     const statusCell = (t: Ticket, s: Status) => {
       if (s === 'claimed') return `◐ ${t.assignee.slice(0, 4)}`
