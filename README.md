@@ -35,6 +35,14 @@ herdr-app do pane.split --direction right --mod tickets
 
 The first line copies the mod into `~/.config/herdr-app/mods/tickets`; run it again after an update and open boards reload. The second line puts the board to the right of the focused pane; `herdr-app do tab.new --name Tickets --mod tickets` gives it a tab of its own. It shows the repository of the terminals beside it; click the repository name in its header to pick another folder.
 
+For a key that opens and closes the board, add a line to the `global` section of `~/.config/herdr-app/keys.json`:
+
+```
+"cmd-shift-t": "mod.open:tickets"
+```
+
+The board then opens as a window floating over the layout, showing the repository of the selected space, and the same key closes it. Drag it where it should sit; herdr remembers the spot. Its size is the `overlay` entry in `herdr/tickets/mod.json`. herdr keeps an edited `keys.json` as yours, so shortcuts added by later herdr releases have to be added by hand.
+
 Select a ticket and press **start agent** (or Enter): `claude '/implement <ticket>'` starts in the project folder, and the ticket moves to Claimed, where its row shows that agent's status for as long as the agent lives. **Agents open in** chooses where:
 
 | Choice | The agent gets |
