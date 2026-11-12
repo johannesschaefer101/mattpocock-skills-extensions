@@ -87,16 +87,17 @@ export function localSet(key, feature, files) {
     }));
     return { key, tracker: 'local', title: feature.replace(/-/g, ' '), total: parsed.length, done: parsed.length - open.length, tickets };
 }
-export function statusOf(t) {
-    if (t.assignee)
+/** `working`: an agent runs on the ticket right now, whoever it is assigned to. */
+export function statusOf(t, working = false) {
+    if (t.assignee || working)
         return 'claimed';
     if (t.blockedBy.length)
         return 'blocked';
     return t.kind === 'agent' ? 'ready' : t.kind;
 }
 export const GROUPS = ['ready', 'human', 'claimed', 'blocked', 'triage'];
-/** Ticket ids in the order the pane lists them. */
-export const visibleOrder = (set) => GROUPS.flatMap(s => set.tickets.filter(t => statusOf(t) === s).map(t => t.id));
+/** Ticket ids in the order the pane lists them; `working` holds the refs of the tickets an agent runs on. */
+export const visibleOrder = (set, working = new Set()) => GROUPS.flatMap(s => set.tickets.filter(t => statusOf(t, working.has(t.ref)) === s).map(t => t.id));
 // ---------- text helpers ----------
 export const fit = (s, n) => n <= 0 ? '' : s.length <= n ? s.padEnd(n) : s.slice(0, Math.max(0, n - 1)) + '…';
 // ---------- starting a session in a new tab ----------

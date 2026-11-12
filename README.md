@@ -35,7 +35,7 @@ herdr-app do pane.split --direction right --mod tickets
 
 The first line copies the mod into `~/.config/herdr-app/mods/tickets`; run it again after an update and open boards reload. The second line puts the board to the right of the focused pane; `herdr-app do tab.new --name Tickets --mod tickets` gives it a tab of its own. It shows the repository of the terminals beside it; click the repository name in its header to pick another folder.
 
-Select a ticket and press **start agent** (or Enter): `claude '/implement <ticket>'` starts in the project folder, and the ticket's row shows that agent's status from then on. **Agents open in** chooses where:
+Select a ticket and press **start agent** (or Enter): `claude '/implement <ticket>'` starts in the project folder, and the ticket moves to Claimed, where its row shows that agent's status for as long as the agent lives. **Agents open in** chooses where:
 
 | Choice | The agent gets |
 | --- | --- |

@@ -195,8 +195,8 @@ export default class Tickets extends View {
   }
 
   start(t, cx) {
-    if (statusOf(t) === "blocked") { notify({ title: `${t.id} still waits on ${t.blockedBy.join(" ")}`, body: "Not started.", level: "warning" }); return; }
     const running = this.running();
+    if (statusOf(t, running.has(t.ref)) === "blocked") { notify({ title: `${t.id} still waits on ${t.blockedBy.join(" ")}`, body: "Not started.", level: "warning" }); return; }
     if (running.has(t.ref)) { this.show(running.get(t.ref), cx); return; }
     const space = this.space(), tab = this.me()?.tab, host = this.host(running);
     if (!space || space.machine) { notify({ title: "Tickets start agents on this computer only", level: "error" }); return; }
@@ -275,7 +275,7 @@ export default class Tickets extends View {
 
   move(by) {
     const set = this.activeSet();
-    const order = set ? visibleOrder(set) : [];
+    const order = set ? visibleOrder(set, this.running()) : [];
     if (!order.length) return;
     const i = order.indexOf(this.sel);
     this.sel = order[Math.max(0, Math.min(order.length - 1, i < 0 ? 0 : i + by))];
@@ -342,8 +342,9 @@ export default class Tickets extends View {
     const shown = host ? ([...running.values()].find((a) => a.address === this.shown) ?? [...running.values()].find((a) => a.pane?.pane === host.pane))?.address : null;
     const mode = MODES.find((m) => m.id === this.mode);
     const body = [];
+    // A ticket an agent runs on is claimed, assigned or not.
     for (const s of GROUPS) {
-      const list = set?.tickets.filter((x) => statusOf(x) === s) ?? [];
+      const list = set?.tickets.filter((x) => statusOf(x, running.has(x.ref)) === s) ?? [];
       if (!list.length) continue;
       body.push(h_flex().flex_none().pt(8).pb(2).px(4).gap(6).text_size(11).font_semibold().text_color(t[GROUP[s].color]).child(GROUP[s].label).child(div().text_color(t.dim).child(String(list.length))));
       for (const ticket of list) body.push(...this.row(t, ticket, s, running, set));

@@ -33,6 +33,9 @@ test('sub-issues group under their parent, by status', async () => {
   expect(set.tickets.map(t => `${t.id} ${statusOf(t)}`)).toEqual(['#57 ready', '#58 blocked', '#60 claimed', '#73 human'])
   expect(set.tickets[0]!.unblocks).toEqual(['#58'])
   expect(visibleOrder(set)).toEqual(['#57', '#73', '#60', '#58'])
+  // A ticket an agent runs on is claimed, though nobody is assigned.
+  expect(statusOf(set.tickets[0]!, true)).toBe('claimed')
+  expect(visibleOrder(set, new Set(['#57']))).toEqual(['#73', '#57', '#60', '#58'])
 })
 
 test('wayfinder tickets and unlabelled loose issues are left out', async () => {

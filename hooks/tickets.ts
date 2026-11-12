@@ -119,17 +119,18 @@ export function localSet(key: string, feature: string, files: readonly LocalFile
 
 export type Status = 'ready' | 'human' | 'claimed' | 'blocked' | 'triage'
 
-export function statusOf(t: Ticket): Status {
-  if (t.assignee) return 'claimed'
+/** `working`: an agent runs on the ticket right now, whoever it is assigned to. */
+export function statusOf(t: Ticket, working = false): Status {
+  if (t.assignee || working) return 'claimed'
   if (t.blockedBy.length) return 'blocked'
   return t.kind === 'agent' ? 'ready' : t.kind
 }
 
 export const GROUPS: readonly Status[] = ['ready', 'human', 'claimed', 'blocked', 'triage']
 
-/** Ticket ids in the order the pane lists them. */
-export const visibleOrder = (set: TicketSet) =>
-  GROUPS.flatMap(s => set.tickets.filter(t => statusOf(t) === s).map(t => t.id))
+/** Ticket ids in the order the pane lists them; `working` holds the refs of the tickets an agent runs on. */
+export const visibleOrder = (set: TicketSet, working: { has(ref: string): boolean } = new Set<string>()) =>
+  GROUPS.flatMap(s => set.tickets.filter(t => statusOf(t, working.has(t.ref)) === s).map(t => t.id))
 
 // ---------- text helpers ----------
 
