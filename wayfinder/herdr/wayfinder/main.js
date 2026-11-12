@@ -2,17 +2,21 @@
 // ready, who works on what and how that agent is doing, with a click to start a session on a ticket.
 // Props: { folder?, argv?, side? } (the project; the agent program a ticket is given to, default
 // ["claude"]; "left" to sit left of the pane it was split from).
+// A session can start with a handoff note: an agent already at work in the project is asked to write
+// one for the ticket, and the session starts when the note is saved.
 // Keys bound to wayfinder.up, wayfinder.down, wayfinder.start and wayfinder.refresh in keys.json act on it too.
 
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { exec, hc, panes, spaces, terminals, agents, props, run, theme, notify, openOverlay, pickFolder, watchFolder, nextCommand, window, home, focused } from "herdr";
 import { SUB_ISSUES_QUERY, gqlTicket, issuesByNumber, issuesQuery, nextUnblocked, openBlockers, parseLocalTicket, parseMapBody, plainText, statusOf, subIssuesPage, taskListNumbers } from "./tracker.js";
-import { mapRef, sessionPrompt, sessionTicket } from "./launch.js";
+import { handoffFile, handoffPrompt, sessionPrompt, sessionTicket } from "./launch.js";
 
 const REFRESH_MS = 300000;
 // A refresh the person or a finished agent asks for still waits this long after the last read of GitHub.
 const FORCE_GAP_MS = 10000;
+// How often a handoff note being written is looked for.
+const HANDOFF_MS = 2000;
 const SPIN = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const GROUPS = ["ready", "claimed", "blocked"];
 const GROUP = {
@@ -20,9 +24,8 @@ const GROUP = {
   claimed: { label: "Claimed", color: "ansi4" },
   blocked: { label: "Blocked", color: "dim" },
 };
-// Where a started agent goes. In all three the board stays where it is.
+// Where a started agent goes. In both the board stays where it is.
 const MODES = [
-  { id: "stack", label: "One pane", about: "one pane beside the board; pick the agent it shows here" },
   { id: "split", label: "Split", about: "a pane of its own in this tab" },
   { id: "tab", label: "Tab", about: "a tab of its own in this space" },
 ];
@@ -42,13 +45,13 @@ export default class Wayfinder extends View {
     this.maps = [];
     this.active = localStorage.getItem("active") ?? "";
     this.sel = "";
-    this.mode = MODES.find((m) => m.id === localStorage.getItem("mode"))?.id ?? "stack";
-    this.shown = localStorage.getItem("shown");
+    this.mode = MODES.find((m) => m.id === localStorage.getItem("mode"))?.id ?? "split";
     this.error = "";
     this.lastGh = 0;
     this.names = new Map();
     this.handle = cx.focus_handle();
     cx.timer.every(REFRESH_MS, (cx) => this.refresh(cx));
+    cx.timer.every(HANDOFF_MS, (cx) => this.checkHandoff(cx));
     // "focus" arrives when pane.go moves onto this pane; the rest are keys.json's.
     cx.spawn(async (cx) => {
       for (;;) {
@@ -245,7 +248,7 @@ export default class Wayfinder extends View {
       }
       if (!ref || out.has(ref)) continue;
       const status = listed.get(k.address) ?? (k.status === "error" ? "blocked" : k.status) ?? null;
-      out.set(ref, { address: k.address, ref, status, pane: withPane.get(k.address), stacked: k.labels?.["wayfinder.mode"] === "stack" });
+      out.set(ref, { address: k.address, ref, status, pane: withPane.get(k.address) });
     }
     return out;
   }
@@ -255,59 +258,104 @@ export default class Wayfinder extends View {
     return new Set(m.tickets.filter((t) => running.has(refOf(m, t))).map((t) => t.id));
   }
 
-  /** The pane "One pane" agents show in: the one of them that has a pane in this tab. */
-  host(running) {
-    const tab = this.me()?.tab;
-    return [...running.values()].find((a) => a.stacked && a.pane?.tab === tab)?.pane;
-  }
-
-  start(m, t, cx) {
+  start(m, t, cx, handoffPath) {
     const running = this.running(), ref = refOf(m, t);
     if (running.has(ref)) { this.show(running.get(ref), cx); return; }
     const waits = openBlockers(t, m.tickets);
     if (waits.length) { notify({ title: `${t.id} still waits on ${waits.join(" ")}`, body: "Not started.", level: "warning" }); return; }
-    const space = this.space(), tab = this.me()?.tab, host = this.host(running);
+    const space = this.space(), tab = this.me()?.tab;
     if (!space || space.machine) { notify({ title: "Wayfinder starts agents on this computer only", level: "error" }); return; }
     const args = ["run", "--bg", "--json", "--no-notify", "--cwd", this.root,
-      "--label", `wayfinder.ticket=${ref}`, "--label", `wayfinder.root=${this.root}`, "--label", `wayfinder.mode=${this.mode}`];
-    // A terminal with herdr's labels gets a pane there. Without them it has none until it is shown: it
-    // starts as a sub-agent of the shared pane's own agent, so herdr's agents list has it under that one.
+      "--label", `wayfinder.ticket=${ref}`, "--label", `wayfinder.root=${this.root}`];
+    // A terminal with herdr's labels gets a pane there: in the board's tab, or in a tab of its own.
     if (this.mode === "tab" || !tab) args.push("--label", `herdr.space=${local(space.id)}`);
-    else if (this.mode === "split" || !host) args.push("--label", `herdr.space=${local(space.id)}`, "--label", `herdr.tab=${local(tab)}`);
-    else args.push("--parent", host.terminal, "--outlive-parent");
-    args.push("--", ...this.argv(), sessionPrompt(m, t, undefined));
+    else args.push("--label", `herdr.space=${local(space.id)}`, "--label", `herdr.tab=${local(tab)}`);
+    args.push("--", ...this.argv(), sessionPrompt(m, t, handoffPath));
     cx.spawn(async (cx) => {
       try {
         const r = await hc(args);
         const address = r.code === 0 ? JSON.parse(r.stdout).address : null;
         if (!address) throw new Error(r.stderr.trim() || r.stdout.trim() || `hc run: exit ${r.code}`);
+        // Named once the window knows the terminal: see follow().
         if (this.mode === "tab") this.names.set(address, `${t.id} ${t.title}`.slice(0, 40));
-        // Shown once the window knows the terminal: see follow().
-        if (this.mode === "stack" && host) this.wanted = address;
       } catch (e) { notify({ title: `Could not start ${t.id}`, body: String(e).slice(0, 200), level: "error" }); }
       cx.notify();
     });
   }
 
-  /** Brings an agent in front: its own pane, or the shared one for an agent without. */
+  // ---------- handoffs ----------
+
+  /** The agents at work in this project that can be asked for a handoff note, by address. */
+  writers(running) {
+    // agents() has the agents with a pane; one without reports its status on the terminal.
+    const listed = new Set(agents().map((a) => a.address));
+    const onTicket = new Map([...running.values()].map((a) => [a.address, a.ref.slice(a.ref.lastIndexOf("|") + 1)]));
+    return terminals()
+      .filter((k) => k.state === "live" && !k.address.includes("/") && (listed.has(k.address) || k.status) && (k.cwd === this.root || k.cwd?.startsWith(this.root + "/")))
+      .map((k) => ({ address: k.address, name: onTicket.get(k.address) ?? `${String(k.title ?? "").trim()} ${k.address}`.trim() }));
+  }
+
+  /** Asks an agent for a handoff note on a ticket; checkHandoff() starts the session once the note is there. */
+  beginHandoff(m, t, w, cx) {
+    if (this.flow) { notify({ title: "A handoff is being written", body: "Start without it or cancel it first.", level: "warning" }); return; }
+    const waits = openBlockers(t, m.tickets);
+    if (waits.length) { notify({ title: `${t.id} still waits on ${waits.join(" ")}`, body: "Not started.", level: "warning" }); return; }
+    const flow = this.flow = { mapKey: m.key, id: t.id, from: w.address, name: w.name, path: "", seen: 0 };
+    cx.spawn(async (cx) => {
+      try {
+        const tmp = (await exec("sh", ["-c", 'printf %s "${TMPDIR:-/tmp}"'])).stdout.trim() || "/tmp";
+        // The handoff skill's own rules, when it is installed.
+        const skill = await exec("sh", ["-c", 'cat "$1/.claude/skills/handoff/SKILL.md" 2>/dev/null || cat "$1/.agents/skills/handoff/SKILL.md" 2>/dev/null', "wayfinder", home()]).catch(() => null);
+        const path = handoffFile(tmp, m, [t.id], Date.now());
+        const r = await hc(["send", w.address, handoffPrompt(m, [t], path, skill?.stdout.trim() || undefined)]);
+        if (r.code !== 0) throw new Error(r.stderr.trim() || `hc send: exit ${r.code}`);
+        flow.path = path;
+      } catch (e) {
+        if (this.flow === flow) this.flow = null;
+        notify({ title: `Could not ask ${w.name} for a handoff`, body: String(e).slice(0, 200), level: "error" });
+      }
+      cx.notify();
+    });
+  }
+
+  // The note counts once it has been there for two looks in a row, so a file still being written is not read.
+  checkHandoff(cx) {
+    const flow = this.flow;
+    if (!flow?.path || flow.busy) return;
+    flow.busy = true;
+    cx.spawn(async (cx) => {
+      try {
+        const there = (await exec("test", ["-s", flow.path]).catch(() => null))?.code === 0;
+        if (this.flow !== flow) return;
+        flow.seen = there ? flow.seen + 1 : 0;
+        const m = this.maps.find((x) => x.key === flow.mapKey), t = m?.tickets.find((x) => x.id === flow.id);
+        if (flow.seen >= 2 && m && t) { this.flow = null; this.start(m, t, cx, flow.path); }
+        else if (!there && !terminals().some((k) => k.address === flow.from && k.state === "live")) {
+          this.flow = null;
+          notify({ title: `${flow.name} ended before the handoff for ${flow.id} was written`, body: "Not started.", level: "warning" });
+        }
+      } finally { flow.busy = false; cx.notify(); }
+    });
+  }
+
+  /** Ends the wait for a note. With `start`, the session starts without one; else the note is removed. */
+  endHandoff(m, t, start, cx) {
+    const flow = this.flow;
+    this.flow = null;
+    if (start) this.start(m, t, cx);
+    else if (flow?.path) exec("rm", ["-f", flow.path]).catch(() => null);
+    cx.notify();
+  }
+
+  /** Brings an agent in front. One without a pane (started outside herdr's window) gets one in this tab. */
   show(a, cx) {
-    const running = this.running(), host = this.host(running);
-    if (a.pane) {
-      if (host && a.pane.pane === host.pane) { run("terminal.show", { pane: host.pane }); this.remember(a.address); }
-      else run("pane.focus", { terminal: a.address });
-    } else if (host) { run("terminal.show", { terminal: a.address, pane: host.pane }); this.remember(a.address); }
+    if (a.pane) run("pane.focus", { terminal: a.address });
     else {
-      // The pane it shared is gone: it gets one of its own in this tab, and the others share that.
       const space = this.space(), tab = this.me()?.tab;
       if (!space || !tab) return;
       cx.spawn(async () => { await hc(["label", a.address, `herdr.space=${local(space.id)}`, `herdr.tab=${local(tab)}`]).catch(() => null); });
     }
     cx.notify();
-  }
-
-  remember(address) {
-    this.shown = address;
-    localStorage.setItem("shown", address);
   }
 
   stop(a, t) {
@@ -319,16 +367,14 @@ export default class Wayfinder extends View {
     if (target) exec(window()?.platform === "macos" ? "open" : "xdg-open", [target]).catch((e) => notify({ title: `Could not open ${target}`, body: String(e), level: "error" }));
   }
 
-  // What waits for the window to know a new terminal: naming the tab made for a ticket, showing an agent
-  // in the shared pane. And a finished agent makes GitHub worth reading again.
+  // What waits for the window to know a new terminal: naming the tab made for a ticket. And a finished
+  // agent makes GitHub worth reading again.
   follow(running, cx) {
     for (const [address, name] of this.names) {
       const pane = panes().find((p) => p.terminal === address);
       if (pane) { run("tab.rename", { id: pane.tab, name }); this.names.delete(address); }
       else if (!terminals().some((k) => k.address === address && k.state === "live")) this.names.delete(address);
     }
-    const wanted = [...running.values()].find((a) => a.address === this.wanted), host = this.host(running);
-    if (wanted && host) { run("terminal.show", { terminal: wanted.address, pane: host.pane }); this.remember(wanted.address); this.wanted = null; }
     // herdr sends "focus" for pane.go only. When the pane beside the board closes, the board becomes
     // the focused pane without it, so the keyboard is taken here, once per time the focus arrives.
     const mine = this.me()?.focused === true;
@@ -405,6 +451,8 @@ export default class Wayfinder extends View {
     ];
     if (!selected) return out;
     const { next, alsoWaits, more } = nextUnblocked(ticket, m.tickets);
+    const writing = this.flow?.mapKey === m.key && this.flow.id === ticket.id, writers = this.writers(running);
+    const canHandoff = !a && !writing && s === "ready" && writers.length > 0;
     const unblocks = !next ? "unblocks nothing"
       : `unblocks ${next.id} ${next.title}${alsoWaits.length ? ` (also waits on ${alsoWaits.join(" ")})` : ""}${more ? ` and ${more} more` : ""}`;
     out.push(
@@ -419,7 +467,22 @@ export default class Wayfinder extends View {
             ? this.button(t, `show-${ticket.id}`, "show agent", (cx) => this.show(a, cx), true)
             : this.button(t, `start-${ticket.id}`, "start session", (cx) => this.start(m, ticket, cx), s === "ready"))
           .when(Boolean(a), (el) => el.child(this.button(t, `stop-${ticket.id}`, "stop", () => this.stop(a, ticket))))
-          .child(this.button(t, `open-${ticket.id}`, "open", () => this.open(ticket.url ?? ticket.path)))),
+          .when(canHandoff, (el) => el.child(this.button(t, `handoff-${ticket.id}`, "handoff + start session", (cx) => {
+            if (writers.length === 1) this.beginHandoff(m, ticket, writers[0], cx);
+            else this.asking = this.asking === ticket.id ? "" : ticket.id;
+            cx.notify();
+          })))
+          .child(this.button(t, `open-${ticket.id}`, "open", () => this.open(ticket.url ?? ticket.path))))
+        .when(writing, (el) => el
+          .child(div().pt(4).text_color(t.foreground).child(`${this.flow.name} writes a handoff; the session starts when it is saved`))
+          .child(h_flex().pt(2).gap(6).flex_wrap()
+            .child(this.button(t, `nohandoff-${ticket.id}`, "start without", (cx) => this.endHandoff(m, ticket, true, cx)))
+            .child(this.button(t, `cancel-${ticket.id}`, "cancel", (cx) => this.endHandoff(m, ticket, false, cx)))))
+        // With several agents at work, the button asks which of them writes the note.
+        .when(canHandoff && this.asking === ticket.id && writers.length > 1, (el) => el
+          .child(h_flex().pt(4).gap(6).items_center().flex_wrap()
+            .child(div().flex_none().child("handoff from"))
+            .children(writers.slice(0, 6).map((w) => this.button(t, `handoff-${ticket.id}-${w.address}`, w.name.slice(0, 24), (cx) => { this.asking = ""; this.beginHandoff(m, ticket, w, cx); }))))),
     );
     return out;
   }
@@ -429,8 +492,6 @@ export default class Wayfinder extends View {
     this.findMe();
     this.place();
     this.follow(running, cx);
-    const host = this.host(running);
-    const shown = host ? ([...running.values()].find((a) => a.address === this.shown) ?? [...running.values()].find((a) => a.pane?.pane === host.pane))?.address : null;
     const mode = MODES.find((x) => x.id === this.mode);
     const body = [];
     // A ticket an agent runs on is claimed, assigned or not.
@@ -463,10 +524,10 @@ export default class Wayfinder extends View {
         .child(div().text_size(11).text_color(t.dim).child(mode.about)))
       .when(running.size > 0, (el) => el.child(h_flex().flex_none().px(10).py(6).gap(4).flex_wrap().border_b(1).border_color(t.border)
         .children([...running.values()].map((a) => h_flex().id(`agent-${a.address}`).h(24).px(8).gap(6).items_center().rounded(6).text_size(12).cursor_pointer()
-          .when(a.address === shown, (el) => el.bg(t.selected)).hover((s) => s.bg(t.hover))
+          .hover((s) => s.bg(t.hover))
           .on_click((_e, cx) => this.show(a, cx))
           .child(this.dot(t, a.status))
-          .child(div().max_w(160).truncate().text_color(a.pane || a.address === shown ? t.foreground : t.muted).child(a.ref.slice(a.ref.lastIndexOf("|") + 1)))))))
+          .child(div().max_w(160).truncate().text_color(a.pane ? t.foreground : t.muted).child(a.ref.slice(a.ref.lastIndexOf("|") + 1)))))))
       .when(this.maps.length > 1, (el) => el.child(h_flex().flex_none().px(10).pt(8).gap(4).flex_wrap()
         .children(this.maps.map((x) => div().id(`map-${x.key}`).max_w(200).truncate().px(8).py(2).rounded(5).text_size(12).cursor_pointer()
           .text_color(x.key === m.key ? t.foreground : t.muted).when(x.key === m.key, (el) => el.bg(t.selected)).hover((s) => s.bg(t.hover))

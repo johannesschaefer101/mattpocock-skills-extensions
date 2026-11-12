@@ -129,11 +129,12 @@ herdr-app do pane.split --direction right --mod wayfinder
 
 The board shows the repository of the terminals beside it; click the repository name in its header to pick another folder. With more than one map, a row of map names picks the one shown. Under the map's title are its destination, the number of decisions and of things not yet specified, then its open tickets as Ready, Claimed and Blocked. Click the title to open the map.
 
-Select a ticket and press **start session** (or Enter): `claude '/wayfinder <map> <ticket>'` starts in the project folder, and the ticket moves to Claimed, where its row shows that agent's status. **Agents open in** chooses one shared pane beside the board, a pane of its own, or a tab of its own. **show agent** goes to a running agent, **stop** ends it after a question, **open** opens the ticket. A blocked ticket is not started. Keys: `↑`/`↓` (or `i`/`k`) move, Enter or `n` starts or shows, `o` opens, `r` refreshes, Esc deselects.
+Select a ticket and press **start session** (or Enter): `claude '/wayfinder <map> <ticket>'` starts in the project folder, and the ticket moves to Claimed, where its row shows that agent's status. **Agents open in** chooses a pane of its own in the board's tab, or a tab of its own. **show agent** goes to a running agent, **stop** ends it after a question, **open** opens the ticket. A blocked ticket is not started. Keys: `↑`/`↓` (or `i`/`k`) move, Enter or `n` starts or shows, `o` opens, `r` refreshes, Esc deselects.
 
 - GitHub maps are read every five minutes, on refresh, and when an agent stops working; local maps when a file under `.scratch` changes.
 - Props, as in `--props '{"folder":"/path/to/project"}'`: `folder` (the project), `argv` (the agent program, default `["claude"]`), `side` (`"left"`: the board moves left of the pane it was split from).
-- Not in the pane yet: handoff notes, the context bars, and closed tickets.
+- **handoff + start session** is there when an agent is at work in the project (with several, it asks which one). That agent is asked to write a handoff note for the ticket, and the session starts when the note is saved, told to read it first. **start without** starts at once, **cancel** drops the note. One ticket at a time.
+- Not in the pane yet: the context bars, and closed tickets.
 
 After a change to `hooks/tracker.ts` or `hooks/launch.ts`, `./scripts/build-herdr.sh` rewrites the pane's copies, `herdr/wayfinder/tracker.js` and `launch.js`.
 
