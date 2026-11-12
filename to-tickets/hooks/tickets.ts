@@ -199,61 +199,15 @@ export function herdrError(stdout: string, stderr: string): string {
   return stderr.trim() || stdout.trim()
 }
 
-// ---------- handoff notes (the herdr pane) ----------
+// ---------- sessions (the herdr pane) ----------
 
-/** The handoff skill's rules without its frontmatter and its line about where to save (the pane picks the path); three rules of its own when the skill is not installed. */
-export function handoffRules(skillText?: string): string {
-  if (!skillText) {
-    return [
-      'Include a "Suggested skills" section naming which skills the next agent should call.',
-      'Do not duplicate what is already in the ticket, specs, commits or diffs: reference them by path or URL.',
-      'Redact sensitive information such as API keys, passwords or personal data.',
-    ].join('\n')
-  }
-  const body = skillText.startsWith('---') ? skillText.slice(skillText.indexOf('\n---', 3) + 4) : skillText
-  return body
-    .split('\n')
-    .filter(l => !/save to|temporary directory/i.test(l))
-    .join('\n')
-    .trim()
-}
-
-/** What an agent at work in the project is asked before a session starts on a ticket: a note at `path` for that session. */
-export function handoffPrompt(setTitle: string, t: { id: string; title: string; ref: string }, path: string, skillText?: string): string {
-  return [
-    `The ticket board is about to start a new session on a ticket of "${setTitle}":`,
-    `- ${t.id} ${t.title}${t.ref === t.id ? '' : ` (${t.ref})`}`,
-    '',
-    'Before it starts, write a handoff note for it from what you learned in this session.',
-    `Save it to exactly this path, creating folders as needed: ${path}`,
-    'Head it "## <id> <title>".',
-    'In it: what you found here that matters for that ticket, decisions or constraints it must respect, open threads, and what to read first.',
-    'Keep it short. Do not start work on the ticket yourself, and do not claim it.',
-    '',
-    'Rules for the note (from the handoff skill):',
-    handoffRules(skillText),
-    '',
-    'When the file is saved, reply with one line saying so.',
-  ].join('\n')
-}
-
-/** What a session on a ticket starts with: the implement command, told to read the handoff note first when there is one. */
-export function sessionPrompt(command: string, ref: string, handoffPath?: string): string {
-  const base = `/${command} ${ref}`
-  return handoffPath ? `${base}  Context from the session that launched this one: read ${handoffPath} before anything else.` : base
+/** What a session on a ticket starts with: the implement command on the ticket. */
+export function sessionPrompt(command: string, ref: string): string {
+  return `/${command} ${ref}`
 }
 
 /** The ticket reference of a session started by sessionPrompt, or by hand as `/<command> <ref>`; undefined for any other prompt. */
 export function sessionRef(command: string, prompt: string): string | undefined {
   const prefix = `/${command} `
-  return prompt.startsWith(prefix) ? prompt.slice(prefix.length).split('  Context from the session')[0]!.trim() || undefined : undefined
-}
-
-const two = (n: number): string => String(n).padStart(2, '0')
-
-/** Where a ticket's handoff note goes: outside the repository, named after the ticket and the time. */
-export function handoffFile(tmp: string, id: string, now: number): string {
-  const d = new Date(now)
-  const stamp = `${d.getFullYear()}${two(d.getMonth() + 1)}${two(d.getDate())}-${two(d.getHours())}${two(d.getMinutes())}${two(d.getSeconds())}`
-  return `${tmp.replace(/\/$/, '')}/ticket-board-handoffs/${id.replace(/[^A-Za-z0-9]+/g, '') || 'ticket'}-${stamp}.md`
+  return prompt.startsWith(prefix) ? prompt.slice(prefix.length).trim() || undefined : undefined
 }

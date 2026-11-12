@@ -5,7 +5,7 @@
 // Props: { folder?, argv?, side? } (the project; the agent program a ticket is given to, default
 // ["claude"]; "left" to sit left of the pane it was split from).
 // A session can start with a handoff note: an agent already at work in the project is asked to write
-// one for the ticket, and the session starts when the note is saved.
+// one for the ticket, and the session starts when the note is saved. A board can do without (`handoffs`).
 // Keys bound to <mod>.up, <mod>.down, <mod>.start and <mod>.refresh in keys.json act on it too.
 
 import { View, div } from "gpui-kit";
@@ -70,6 +70,8 @@ export class Board extends View {
   waits(_set, _t) { return []; }
   /** The tickets of a set by status, in the order they are drawn: [[status, tickets], …]. */
   grouped(_set, _running) { return []; }
+  /** Whether a session can start with a handoff note. */
+  get handoffs() { return true; }
   /** Where the handoff note for a ticket goes, and what the agent that writes it is asked. */
   handoffFile(tmp, _set, t, now) { return `${tmp}/${this.mod}-handoffs/${t.id}-${now}.md`; }
   handoffPrompt(_set, t, path, _skill) { return `Write a handoff note for ${t.id} ${t.title} to ${path}.`; }
@@ -470,8 +472,8 @@ export class Board extends View {
         .when(Boolean(a), (el) => el.child(div().flex_none().text_size(11).text_color(t[a.status] ?? t.dim).child(WORDS[a.status] ?? "running")).child(this.dot(t, a.status))),
     ];
     if (!selected) return out;
-    const writing = this.flow?.key === set.key && this.flow.id === ticket.id, writers = this.writers(running);
-    const canHandoff = !a && !writing && s === "ready" && writers.length > 0;
+    const writing = this.flow?.key === set.key && this.flow.id === ticket.id, writers = this.handoffs ? this.writers(running) : [];
+    const canHandoff = this.handoffs && !a && !writing && s === "ready" && writers.length > 0;
     out.push(
       v_flex().id(`detail-${ticket.id}`).flex_none().pl(19).pr(8).pt(2).pb(10).gap(3).text_size(12).text_color(t.muted)
         .child(div().text_color(t.foreground).child(ticket.title))

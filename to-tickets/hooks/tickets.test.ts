@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { effectiveLauncher, githubSets, handoffFile, handoffPrompt, handoffRules, herdrError, launchArgv, localSet, repoOfRemote, sessionPrompt, sessionRef, shellCommand, statusOf, visibleOrder, type GqlIssue } from './tickets'
+import { effectiveLauncher, githubSets, herdrError, launchArgv, localSet, repoOfRemote, sessionPrompt, sessionRef, shellCommand, statusOf, visibleOrder, type GqlIssue } from './tickets'
 
 const labels = (...names: string[]) => ({ nodes: names.map(name => ({ name })) })
 const spec = { number: 53, title: 'Game spec', url: 'u53', labels: labels('ready-for-agent'), subIssuesSummary: { total: 4, completed: 1 } }
@@ -102,26 +102,11 @@ test('the repository is read from the origin remote', async () => {
   expect(repoOfRemote('git@gitlab.com:jo/x.git')).toBeUndefined()
 })
 
-test('a session starts on the implement command, with the handoff note when there is one', async () => {
+test('a session starts on the implement command', async () => {
   expect(sessionPrompt('implement', '#64')).toBe('/implement #64')
-  const withNote = sessionPrompt('implement', '.scratch/shop/issues/02-cart.md', '/tmp/ticket-board-handoffs/02-x.md')
-  expect(withNote.startsWith('/implement .scratch/shop/issues/02-cart.md  Context from the session that launched this one: read /tmp/ticket-board-handoffs/02-x.md')).toBe(true)
 
   expect(sessionRef('implement', '/implement #64')).toBe('#64')
-  expect(sessionRef('implement', withNote)).toBe('.scratch/shop/issues/02-cart.md')
+  expect(sessionRef('implement', sessionPrompt('implement', '.scratch/shop/issues/02-cart.md'))).toBe('.scratch/shop/issues/02-cart.md')
   expect(sessionRef('implement', '/wayfinder map 01')).toBeUndefined()
   expect(sessionRef('implement', 'fix the bug')).toBeUndefined()
-})
-
-test('a handoff note is asked for at a path outside the repository', async () => {
-  const p = handoffFile('/tmp/', '#64', new Date(2026, 10, 4, 12, 5, 9).getTime())
-  expect(p).toBe('/tmp/ticket-board-handoffs/64-20261104-120509.md')
-
-  const prompt = handoffPrompt('Game spec', { id: '#64', title: 'Settings', ref: '#64' }, p)
-  expect(prompt.includes('- #64 Settings\n')).toBe(true)
-  expect(prompt.includes(`Save it to exactly this path, creating folders as needed: ${p}`)).toBe(true)
-  expect(prompt.includes('Suggested skills')).toBe(true)
-  expect(handoffPrompt('shop', { id: '02', title: 'Cart', ref: '.scratch/shop/issues/02-cart.md' }, p).includes('- 02 Cart (.scratch/shop/issues/02-cart.md)')).toBe(true)
-
-  expect(handoffRules('---\nname: handoff\n---\nWrite it.\nSave to the temporary directory of the OS.\nRedact keys.')).toBe('Write it.\nRedact keys.')
 })

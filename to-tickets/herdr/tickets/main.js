@@ -1,12 +1,12 @@
 // The open /to-tickets tickets of a project as a pane of its own: what is ready, who works on
 // what and how that agent is doing, with a click to start an agent on a ticket or go to it.
 // Props: those of board.js, and command (the slash command a ticket is started with, default "implement").
-// The pane itself (where it is, starting and showing agents, handoff notes, drawing) is board.js.
+// The pane itself (where it is, starting and showing agents, drawing) is board.js.
 
 import { div } from "gpui-kit";
 import { exec, props } from "herdr";
 import { Board } from "./board.js";
-import { GROUPS, ISSUES_QUERY, githubSets, handoffFile, handoffPrompt, localSet, repoOfRemote, sessionPrompt, sessionRef, statusOf } from "./tickets.js";
+import { GROUPS, ISSUES_QUERY, githubSets, localSet, repoOfRemote, sessionPrompt, sessionRef, statusOf } from "./tickets.js";
 
 const GROUP = {
   ready: { label: "Ready", color: "ansi2" },
@@ -30,6 +30,8 @@ export default class Tickets extends Board {
   get label() { return "ticket-board"; }
   get groups() { return GROUP; }
   get texts() { return TEXTS; }
+  // A ticket holds what its session needs, so none starts with a handoff note.
+  get handoffs() { return false; }
 
   command() {
     return String(props()?.command ?? "implement").trim().replace(/^\//, "") || "implement";
@@ -75,11 +77,9 @@ export default class Tickets extends Board {
   // from the Claude Code sidebar's "new pane" has the same prompt, so it shows up on the board as well.
   refOf(_set, t) { return t.ref; }
   sessionRef(prompt) { return sessionRef(this.command(), prompt); }
-  sessionPrompt(_set, t, handoffPath) { return sessionPrompt(this.command(), t.ref, handoffPath); }
+  sessionPrompt(_set, t) { return sessionPrompt(this.command(), t.ref); }
   waits(_set, t) { return statusOf(t) === "blocked" ? t.blockedBy : []; }
   grouped(set, running) { return GROUPS.map((s) => [s, set.tickets.filter((t) => statusOf(t, running.has(t.ref)) === s)]); }
-  handoffFile(tmp, _set, t, now) { return handoffFile(tmp, t.id, now); }
-  handoffPrompt(set, t, path, skill) { return handoffPrompt(set.title, t, path, skill); }
 
   // ---------- drawing ----------
 

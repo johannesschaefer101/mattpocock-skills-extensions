@@ -35,7 +35,6 @@ In the desktop app, where `/plugin` does not run: click + next to the prompt box
 - **The [`gh` CLI](https://cli.github.com), signed in,** for GitHub tickets. Local ticket files are read without it.
 - **macOS with iTerm or Terminal.app** for new tabs. Elsewhere the command is copied to the clipboard.
 - **herdr**, optional, for new panes and for the board as a herdr pane: its window open and `herdr-app` on the `PATH`, on any system.
-- **The [`handoff` skill](https://github.com/mattpocock/skills)**, optional and for the herdr pane only: when it is installed, its rules shape the handoff notes.
 
 ## Using it
 
@@ -95,7 +94,6 @@ Select a ticket and press **start agent** (or Enter): `claude '/implement <ticke
 
 The board stays where it is in both. The row of agents at the top of the board goes to one with a click. **show agent** goes to a running agent, **stop** ends it after a question, **open** opens the ticket. Keys while the board has the keyboard: `↑`/`↓` (or `i`/`k`) move, Enter or `n` starts or shows, `o` opens, `r` refreshes, Esc deselects.
 
-- **handoff + start agent** is there when an agent is at work in the project (with several, it asks which one). That agent is asked to write a handoff note for the ticket, and the session starts when the note is saved, told to read it first. **start without** starts at once, **cancel** drops the note. Notes go in `$TMPDIR/ticket-board-handoffs/`, never in the repository, and are removed when the ticket closes, after a week, or when the handoff was cancelled or started without. One ticket at a time.
 - A ticket that stops being blocked while the board is open is marked **new** for five minutes, or until it is selected.
 - An agent started from the Claude Code sidebar's "new pane" shows up on the board as well.
 - GitHub is read every five minutes, on refresh, and when an agent stops working; local ticket files when they change.
@@ -123,7 +121,7 @@ launchctl bootout gui/$(id -u)/mattpocock-skills-extensions.herdr-mods
 rm ~/Library/LaunchAgents/mattpocock-skills-extensions.herdr-mods.plist
 ```
 
-The pane is two parts. `scripts/herdr/board.js` is what this board and the wayfinder one share: where the pane is, which project it shows, starting, showing and stopping agents, handoff notes, and the drawing. `to-tickets/herdr/tickets/main.js` is what is this board's own: reading the tickets, their groups, and the lines under a selected ticket. A herdr mod is a plain folder of files, so each mod has a copy of the shared file as `board.js`: edit `scripts/herdr/board.js`, never the copies. `build-herdr.sh` and `install-herdr.sh` both write the copies, so with the launchd agent a save of the shared file reaches open boards too.
+The pane is two parts. `scripts/herdr/board.js` is what this board and the wayfinder one share: where the pane is, which project it shows, starting, showing and stopping agents, handoff notes (which only the wayfinder board offers), and the drawing. `to-tickets/herdr/tickets/main.js` is what is this board's own: reading the tickets, their groups, and the lines under a selected ticket. A herdr mod is a plain folder of files, so each mod has a copy of the shared file as `board.js`: edit `scripts/herdr/board.js`, never the copies. `build-herdr.sh` and `install-herdr.sh` both write the copies, so with the launchd agent a save of the shared file reaches open boards too.
 
 `herdr-app check` writes `gpui-kit.d.ts` and `jsconfig.json` into the folder it checks; `.gitignore` keeps them out.
 

@@ -2,6 +2,11 @@
 
 Changes to the `ticket-board` plugin and the `tickets` herdr mod. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.3.1]
+
+### Removed
+- herdr pane: **handoff + start agent**. A ticket holds what its session needs, so a session starts on the ticket alone. Notes written earlier are still removed after a week.
+
 ## [0.3.0]
 
 ### Added
