@@ -1,6 +1,8 @@
-# ticket-board
+# to-tickets: ticket-board
 
-A Claude Code sidebar of the open tickets that the `/to-tickets` skill published. It sits beside the chat, groups the tickets by what can be done with them, and starts a session on one with a key press.
+The `/to-tickets` extension of [mattpocock-skills-extensions](../README.md): the Claude Code plugin `ticket-board` and the herdr mod `tickets`.
+
+`ticket-board` is a Claude Code sidebar of the open tickets that the `/to-tickets` skill published. It sits beside the chat, groups the tickets by what can be done with them, and starts a session on one with a key press. `tickets` is [the same board as a herdr pane](#the-board-as-a-herdr-pane).
 
 ## What it shows
 
@@ -8,7 +10,7 @@ A Claude Code sidebar of the open tickets that the `/to-tickets` skill published
 - **Groups**: Ready, Needs you (`ready-for-human`), Claimed (assigned), Blocked and In triage, with counts and the parent's progress in the banner.
 - **Blocking**: GitHub's native issue dependencies; for local files the `Blocked by:` line. A "Blocked by" section in a GitHub issue body is not read.
 
-Wayfinder maps and their tickets are left out: the [wayfinder-sidebar](https://github.com/nicksmits1/wayfinder-sidebar) shows those.
+Wayfinder maps and their tickets are left out: the [wayfinder-sidebar](../wayfinder) shows those.
 
 ## Using it
 
@@ -35,7 +37,7 @@ From the repository root:
 herdr-app do pane.split --direction right --mod tickets
 ```
 
-The first line copies the mod into `~/.config/herdr-app/mods/tickets`; run it again after an update and open boards reload. The second line puts the board to the right of the focused pane; `herdr-app do tab.new --name Tickets --mod tickets` gives it a tab of its own. It shows the repository of the terminals beside it; click the repository name in its header to pick another folder.
+The first line copies every mod of this repository into `~/.config/herdr-app/mods`, this one as `tickets`; run it again after an update and open boards reload. The second line puts the board to the right of the focused pane; `herdr-app do tab.new --name Tickets --mod tickets` gives it a tab of its own. It shows the repository of the terminals beside it; click the repository name in its header to pick another folder.
 
 For a key that puts the board beside the focused pane, add a line to the `global` section of `~/.config/herdr-app/keys.json`:
 
@@ -102,10 +104,10 @@ claude plugin validate to-tickets
 claude plugin test to-tickets
 ./scripts/build-herdr.sh     # after a change to to-tickets/hooks/tickets.ts: rewrites to-tickets/herdr/tickets/tickets.js
 herdr-app check to-tickets/herdr/tickets
-./scripts/install-herdr.sh --watch   # macOS, once: herdr follows to-tickets/herdr/tickets from then on
+./scripts/install-herdr.sh --watch   # macOS, once: herdr follows every mod of this checkout from then on
 ```
 
-herdr reloads a mod when a file in `~/.config/herdr-app/mods/<name>` is saved, but not through a symlink to this folder, so the mod there is a copy. `install-herdr.sh --watch` makes the copy and adds a launchd agent, `ticket-board.herdr-mod`, that copies again whenever `main.js`, `tickets.js` or `mod.json` in `to-tickets/herdr/tickets` changes: a save, a build, a checkout or a pull reaches open boards within a second or two. A broken save shows under `errors` in `herdr-app status` while the boards keep the last good version.
+herdr reloads a mod when a file in `~/.config/herdr-app/mods/<name>` is saved, but not through a symlink to this folder, so the mod there is a copy. `install-herdr.sh` copies every mod it finds under `*/herdr/*/`, this one and the wayfinder one: each mod's `*.js` files and its `mod.json`. With `--watch` it also adds a launchd agent, `ticket-board.herdr-mod`, that copies again whenever one of those files changes in any of the mods: a save, a build, a checkout or a pull reaches open boards within a second or two. A broken save shows under `errors` in `herdr-app status` while the boards keep the last good version.
 
 The agent is not part of the repository. It lives in `~/Library/LaunchAgents/ticket-board.herdr-mod.plist`, holds this checkout's path (run the script again if the folder moves) and starts at login. To remove it:
 

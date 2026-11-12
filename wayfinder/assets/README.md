@@ -1,8 +1,8 @@
 # Assets
 
 - `icon.svg`: source for `.claude-plugin/icon.png`. Re-render with `rsvg-convert -w 1024 -h 1024 assets/icon.svg -o .claude-plugin/icon.png`.
-- `demo.gif`: the GIF at the top of the README, made from `demo.mp4`.
-- `demo.mp4`: the edited, silent demo video (zooms on the sidebar), cut from the raw recording.
+- `demo.gif`: the GIF at the top of the README.
+- `palette.html`: the sidebar's colors, as a page to open in a browser.
 - `sidebar.png`: a still of the sidebar beside a chat.
 
 ## Recording the demo

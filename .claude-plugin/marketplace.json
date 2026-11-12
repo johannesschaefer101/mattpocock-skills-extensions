@@ -1,5 +1,6 @@
 {
   "name": "mattpocock-skills-extensions",
+  "description": "Claude Code sidebars for Matt Pocock's skills, with herdr mods in the same repository.",
   "owner": {
     "name": "Johannes Schaefer"
   },

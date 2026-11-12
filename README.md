@@ -28,7 +28,7 @@ The first line copies both mods into `~/.config/herdr-app/mods`; each of the oth
 
 ## wayfinder
 
-`wayfinder` is a `git subtree` of [johannesschaefer101/wayfinder-sidebar](https://github.com/johannesschaefer101/wayfinder-sidebar), a fork of [nicksmits1/wayfinder-sidebar](https://github.com/nicksmits1/wayfinder-sidebar) by Nick Smits, under its own MIT [LICENSE](wayfinder/LICENSE). To take in changes from the fork:
+`wayfinder` is a `git subtree` of [johannesschaefer101/wayfinder-sidebar](https://github.com/johannesschaefer101/wayfinder-sidebar), a fork of [nicksmits1/wayfinder-sidebar](https://github.com/nicksmits1/wayfinder-sidebar) by Nick Smits, under its own MIT [LICENSE](wayfinder/LICENSE). This copy leaves out the fork's own repository files (CI, contributing documents, demo videos) and adds the herdr mod. To take in changes from the fork, and delete those files again if the pull brings a conflict on them:
 
 ```
 git subtree pull --prefix=wayfinder git@github.com:johannesschaefer101/wayfinder-sidebar.git graphql-github-loading

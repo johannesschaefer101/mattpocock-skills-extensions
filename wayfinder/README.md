@@ -6,7 +6,6 @@
 
 **Your [`/wayfinder`](https://github.com/mattpocock/skills) map beside the chat. Click ▶ on a ticket and a new Claude Code session starts working on it, with a handoff from this one.**
 
-[![CI](https://github.com/nicksmits1/wayfinder-sidebar/actions/workflows/ci.yml/badge.svg)](https://github.com/nicksmits1/wayfinder-sidebar/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Claude Code 2.1.275+](https://img.shields.io/badge/Claude%20Code-2.1.275%2B-d97757)
 
@@ -56,13 +55,13 @@ It only reads your tracker. It never edits your tickets or your wayfinder, grill
 At the prompt of a Claude Code terminal session:
 
 ```
-/plugin install wayfinder-sidebar --marketplace nicksmits1/wayfinder-sidebar
+/plugin install wayfinder-sidebar --marketplace johannesschaefer101/mattpocock-skills-extensions
 ```
 
-Answer `y` to add the marketplace, then pick a scope. From a shell:
+Answer `y` to add the marketplace, then choose a scope. From a shell:
 
 ```
-claude plugin install wayfinder-sidebar --marketplace nicksmits1/wayfinder-sidebar
+claude plugin install wayfinder-sidebar --marketplace johannesschaefer101/mattpocock-skills-extensions
 ```
 
 The sidebar opens on its own when the working directory has a map, and `/wayfinder-map` opens it any time. It docks beside the chat in fullscreen mode when the terminal is at least 110 columns wide.
@@ -127,6 +126,14 @@ claude "/wayfinder <map> <ticket>  Context from the session that launched this o
 herdr-app do pane.split --direction right --mod wayfinder
 ```
 
+For a key that puts the board beside the focused pane, add a line to the `global` section of `~/.config/herdr-app/keys.json`:
+
+```
+"cmd-shift-m": { "command": "pane.split", "args": { "direction": "right", "mod": "wayfinder", "props": { "side": "left" } } }
+```
+
+herdr splits to the right or below only; with `side` the board moves to the left of the pane it was split from. Leave `props` out to keep it on the right. `"cmd-shift-m": "mod.open:wayfinder"` instead opens the board as a floating window.
+
 The board shows the repository of the terminals beside it; click the repository name in its header to pick another folder. With more than one map, a row of map names picks the one shown. Under the map's title are its destination, the number of decisions and of things not yet specified, then its open tickets as Ready, Claimed and Blocked. Click the title to open the map.
 
 Select a ticket and press **start session** (or Enter): `claude '/wayfinder <map> <ticket>'` starts in the project folder, and the ticket moves to Claimed, where its row shows that agent's status. **Agents open in** chooses a pane of its own in the board's tab, or a tab of its own. **show agent** goes to a running agent, **stop** ends it after a question, **open** opens the ticket. A blocked ticket is not started. Keys: `↑`/`↓` (or `i`/`k`) move, Enter or `n` starts or shows, `o` opens, `r` refreshes, Esc deselects.
@@ -165,12 +172,12 @@ The first launch into iTerm or Terminal makes macOS ask whether Claude Code may 
 
 ## Contributing
 
-Bug reports, tracker formats seen in the wild, and launchers for other terminals (kitty, WezTerm, Ghostty, tmux, Linux terminals) are all welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) to run the mod from a clone and run its tests.
+Bug reports, tracker formats seen in the wild, and launchers for other terminals (kitty, WezTerm, Ghostty, tmux, Linux terminals) are all welcome. To run the tests, run `claude plugin test .` in this folder.
 
 ## Credits
 
-Built for [Matt Pocock's skills](https://github.com/mattpocock/skills) (`wayfinder`, `grilling`, `handoff`). Ticket colors follow the Proschi plugin's palette.
+Made by Nick Smits as [wayfinder-sidebar](https://github.com/nicksmits1/wayfinder-sidebar). Built for [Matt Pocock's skills](https://github.com/mattpocock/skills) (`wayfinder`, `grilling`, `handoff`). Ticket colors follow the Proschi plugin's palette.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE), copyright Nicolas Smits.
