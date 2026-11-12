@@ -13,6 +13,8 @@ import { GROUPS, ISSUES_QUERY, githubSets, localSet, repoOfRemote, statusOf, vis
 const REFRESH_MS = 300000;
 // A refresh the person or a finished agent asks for still waits this long after the last read of GitHub.
 const FORCE_GAP_MS = 10000;
+// How long a terminal just started may be missing from the window's list before it counts as gone.
+const NEW_MS = 10000;
 const SPIN = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const GROUP = {
   ready: { label: "Ready", color: "ansi2" },
@@ -60,21 +62,26 @@ export default class Tickets extends View {
       for (const ms of [0, 100]) { await cx.sleep(ms); if (!this.handle.is_focused()) this.handle.focus(); }
       cx.notify();
     });
-    cx.spawn(async (cx) => { await this.locate(); this.refresh(cx, true); this.watch(cx); });
   }
 
   // ---------- where this is ----------
 
   me() {
     const all = panes();
-    return all.find((p) => p.pane === props()?.pane) ?? all.find((p) => p.pane === this.pane) ?? all.find((p) => p.mod && p.mod === props()?.mod) ?? all.find((p) => p.mod === "tickets");
+    return all.find((p) => p.pane === props()?.pane) ?? all.find((p) => p.pane === this.pane);
   }
 
   // herdr does not tell a mod pane which pane it is. Only the boards of the shown tab are drawn, so
   // while this one is drawn and that tab has one board, that is it. Kept for when it is not drawn.
+  // With several boards there, it is the one with the focus (a board just split in has it), else any
+  // of them: they share the tab, which is what tells the project.
   findMe() {
     const tab = focused()?.tab, here = panes().filter((p) => p.mod === (props()?.mod ?? "tickets") && p.tab === tab);
     if (here.length === 1) this.pane = here[0].pane;
+    else if (here.length && !here.some((p) => p.pane === this.pane)) this.pane = (here.find((p) => p.focused) ?? here[0]).pane;
+    // The project is looked for once this is known. A board that starts while it is not shown (herdr
+    // starts every board again when a file of the mod is saved) would take the shown space's project.
+    return Boolean(this.pane) || Boolean(props()?.overlay);
   }
 
   // pane.split opens to the right or below only: with side "left", the board trades places with the
@@ -237,7 +244,7 @@ export default class Tickets extends View {
         const r = await hc(args);
         const address = r.code === 0 ? JSON.parse(r.stdout).address : null;
         if (!address) throw new Error(r.stderr.trim() || r.stdout.trim() || `hc run: exit ${r.code}`);
-        if (this.mode === "tab") this.names.set(address, `${t.id} ${t.title}`.slice(0, 40));
+        if (this.mode === "tab") this.names.set(address, { name: `${t.id} ${t.title}`.slice(0, 40), at: Date.now() });
         // Shown once the window knows the terminal: see follow().
         if (this.mode === "stack" && host) this.wanted = address;
       } catch (e) { notify({ title: `Could not start ${t.id}`, body: String(e).slice(0, 200), level: "error" }); }
@@ -279,10 +286,11 @@ export default class Tickets extends View {
   // What waits for the window to know a new terminal: naming the tab made for a ticket, showing an agent
   // in the shared pane. And a finished agent makes GitHub worth reading again.
   follow(running, cx) {
-    for (const [address, name] of this.names) {
+    for (const [address, { name, at }] of this.names) {
       const pane = panes().find((p) => p.terminal === address);
       if (pane) { run("tab.rename", { id: pane.tab, name }); this.names.delete(address); }
-      else if (!terminals().some((k) => k.address === address && k.state === "live")) this.names.delete(address);
+      // The window learns of a new terminal a moment after hc has started it: not there yet is not gone.
+      else if (Date.now() - at > NEW_MS && !terminals().some((k) => k.address === address && k.state === "live")) this.names.delete(address);
     }
     const wanted = [...running.values()].find((a) => a.address === this.wanted), host = this.host(running);
     if (wanted && host) { run("terminal.show", { terminal: wanted.address, pane: host.pane }); this.remember(wanted.address); this.wanted = null; }
@@ -370,7 +378,10 @@ export default class Tickets extends View {
 
   render(cx) {
     const t = theme(), set = this.activeSet(), running = this.root ? this.running() : new Map();
-    this.findMe();
+    if (this.findMe() && !this.located) {
+      this.located = true;
+      cx.spawn(async (cx) => { await this.locate(); this.refresh(cx, true); this.watch(cx); });
+    }
     this.place();
     this.follow(running, cx);
     const host = this.host(running);
