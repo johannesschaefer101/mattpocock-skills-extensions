@@ -6,6 +6,8 @@ Changes to the `ticket-board` plugin and the `tickets` herdr mod. The format fol
 
 ### Added
 - herdr pane: **handoff + start agent** asks an agent at work in the project for a handoff note on the ticket and starts the session when the note is saved.
+- herdr pane: a handoff note is removed when its ticket closes, after a week, or when the handoff was cancelled or started without.
+- herdr pane: a ticket that stops being blocked while the board is open is marked "new".
 - An icon for the plugin.
 
 ### Changed

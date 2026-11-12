@@ -140,8 +140,9 @@ Select a ticket and press **start session** (or Enter): `claude '/wayfinder <map
 
 - GitHub maps are read every five minutes, on refresh, and when an agent stops working; local maps when a file under `.scratch` changes.
 - Props, as in `--props '{"folder":"/path/to/project"}'`: `folder` (the project), `argv` (the agent program, default `["claude"]`), `side` (`"left"`: the board moves left of the pane it was split from).
-- **handoff + start session** is there when an agent is at work in the project (with several, it asks which one). That agent is asked to write a handoff note for the ticket, and the session starts when the note is saved, told to read it first. **start without** starts at once, **cancel** drops the note. One ticket at a time.
-- Not in the pane yet: the context bars, and closed tickets.
+- **handoff + start session** is there when an agent is at work in the project (with several, it asks which one). That agent is asked to write a handoff note for the ticket, and the session starts when the note is saved, told to read it first. **start without** starts at once, **cancel** drops the note. One ticket at a time. A note is removed when its ticket closes, after a week, or when the handoff was cancelled or started without.
+- A ticket that stops being blocked while the board is open is marked **new** for five minutes, or until it is selected.
+- Not in the pane: a handoff for several tickets at once, the context bars, and closed tickets.
 
 After a change to `hooks/tracker.ts` or `hooks/launch.ts`, `./scripts/build-herdr.sh` rewrites the pane's copies, `herdr/wayfinder/tracker.js` and `launch.js`. `herdr/wayfinder/board.js` is a copy too, of `scripts/herdr/board.js`, the pane this board shares with the [ticket board](../to-tickets/README.md#developing): edit that file, not the copy.
 

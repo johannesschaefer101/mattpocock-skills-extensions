@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows [Kee
 The version in [mattpocock-skills-extensions](https://github.com/johannesschaefer101/mattpocock-skills-extensions). It has everything listed under Unreleased below, and:
 
 ### Added
-- The maps as a pane of the herdr app (`herdr/wayfinder`): a map's destination and tickets, a click to start a session on a ticket in a split or a tab, with a handoff note from an agent at work in the project, and each agent's status on its ticket's row.
+- The maps as a pane of the herdr app (`herdr/wayfinder`): a map's destination and tickets, a click to start a session on a ticket in a split or a tab, with a handoff note from an agent at work in the project, and each agent's status on its ticket's row. A handoff note is removed when its ticket closes, after a week, or when the handoff was cancelled or started without, and a ticket that stops being blocked while the board is open is marked "new".
 
 ### Changed
 - The plugin is installed from the marketplace `johannesschaefer101/mattpocock-skills-extensions`.

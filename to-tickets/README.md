@@ -58,7 +58,8 @@ Select a ticket and press **start agent** (or Enter): `claude '/implement <ticke
 
 The board stays where it is in both. The row of agents at the top of the board goes to one with a click. **show agent** goes to a running agent, **stop** ends it after a question, **open** opens the ticket. Keys while the board has the keyboard: `↑`/`↓` (or `i`/`k`) move, Enter or `n` starts or shows, `o` opens, `r` refreshes, Esc deselects.
 
-- **handoff + start agent** is there when an agent is at work in the project (with several, it asks which one). That agent is asked to write a handoff note for the ticket, and the session starts when the note is saved, told to read it first. **start without** starts at once, **cancel** drops the note. Notes go in `$TMPDIR/ticket-board-handoffs/`, never in the repository. One ticket at a time.
+- **handoff + start agent** is there when an agent is at work in the project (with several, it asks which one). That agent is asked to write a handoff note for the ticket, and the session starts when the note is saved, told to read it first. **start without** starts at once, **cancel** drops the note. Notes go in `$TMPDIR/ticket-board-handoffs/`, never in the repository, and are removed when the ticket closes, after a week, or when the handoff was cancelled or started without. One ticket at a time.
+- A ticket that stops being blocked while the board is open is marked **new** for five minutes, or until it is selected.
 - An agent started from the Claude Code sidebar's "new pane" shows up on the board as well.
 - GitHub is read every five minutes, on refresh, and when an agent stops working; local ticket files when they change.
 - Props, as in `--props '{"folder":"/path/to/project"}'`: `folder` (the project), `command` (the slash command, default `implement`), `argv` (the agent program, default `["claude"]`), `side` (`"left"`: the board moves left of the pane it was split from).

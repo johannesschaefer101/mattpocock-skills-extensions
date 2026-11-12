@@ -19,6 +19,12 @@ const FORCE_GAP_MS = 10000;
 const HANDOFF_MS = 2000;
 // How long a terminal just started may be missing from the window's list before it counts as gone.
 const NEW_MS = 10000;
+// A handoff note is removed after a week, as the wayfinder sidebar does. One that was cancelled is
+// looked for this long: the agent asked for it may still write it.
+const WEEK_MS = 7 * 86400000;
+const DROPPED_MS = 3600000;
+// How long a ticket that stopped being blocked is marked "new".
+const FRESH_MS = 300000;
 const SPIN = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 // Where a started agent goes. In both the board stays where it is.
 const MODES = [
@@ -89,6 +95,7 @@ export class Board extends View {
     this.error = "";
     this.lastGh = 0;
     this.names = new Map();
+    this.fresh = new Map();
     this.handle = cx.focus_handle();
     cx.timer.every(REFRESH_MS, (cx) => this.refresh(cx));
     cx.timer.every(HANDOFF_MS, (cx) => this.checkHandoff(cx));
@@ -193,7 +200,7 @@ export class Board extends View {
     const root = this.root;
     cx.spawn(async (cx) => {
       try {
-        const files = await this.loadLocal().catch(() => []);
+        const files = await this.loadLocal().then((x) => { this.localRead = true; return x; }, () => { this.localRead = false; return []; });
         if (this.repo === undefined) this.repo = await this.findRepo();
         const age = Date.now() - this.lastGh;
         if (this.repo && age >= (force ? FORCE_GAP_MS : REFRESH_MS - 1000)) {
@@ -204,6 +211,8 @@ export class Board extends View {
         if (this.root !== root) return;
         this.sets = this.merge(files, this.github ?? []);
         this.loaded = true;
+        this.mark();
+        this.tidy();
       } finally { this.loading = false; cx.notify(); }
     });
   }
@@ -247,6 +256,7 @@ export class Board extends View {
         if (!address) throw new Error(r.stderr.trim() || r.stdout.trim() || `hc run: exit ${r.code}`);
         // Named once the window knows the terminal: see follow().
         if (this.mode === "tab") this.names.set(address, { name: `${t.id} ${t.title}`.slice(0, 40), at: Date.now() });
+        if (handoffPath) this.keep({ path: handoffPath, key: set.key, id: t.id, at: Date.now() });
       } catch (e) { notify({ title: `Could not start ${t.id}`, body: String(e).slice(0, 200), level: "error" }); }
       cx.notify();
     });
@@ -322,6 +332,9 @@ export class Board extends View {
         const r = await hc(["send", w.address, this.handoffPrompt(set, t, path, skill?.stdout.trim() || undefined)]);
         if (r.code !== 0) throw new Error(r.stderr.trim() || `hc send: exit ${r.code}`);
         flow.path = path;
+        localStorage.setItem("notesDir", path.slice(0, path.lastIndexOf("/")));
+        // Cancelled, or started without, while the request was on its way.
+        if (this.flow !== flow) this.keep({ path, at: Date.now(), dropped: true });
       } catch (e) {
         if (this.flow === flow) this.flow = null;
         notify({ title: `Could not ask ${w.name} for a handoff`, body: String(e).slice(0, 200), level: "error" });
@@ -350,13 +363,55 @@ export class Board extends View {
     });
   }
 
-  /** Ends the wait for a note. With `start`, the session starts without one; else the note is removed. */
+  /** Ends the wait for a note. With `start`, the session starts without one. Either way nobody will read the note. */
   endHandoff(set, t, start, cx) {
     const flow = this.flow;
     this.flow = null;
     if (start) this.start(set, t, cx);
-    else if (flow?.path) exec("rm", ["-f", flow.path]).catch(() => null);
+    if (flow?.path) { this.keep({ path: flow.path, at: Date.now(), dropped: true }); this.tidy(); }
     cx.notify();
+  }
+
+  /** The handoff notes this board asked for: { path, at }, with the ticket (key, id) a session reads it for, or `dropped`. */
+  notes() {
+    try { return JSON.parse(localStorage.getItem("notes") ?? "[]"); } catch { return []; }
+  }
+
+  keep(note) {
+    localStorage.setItem("notes", JSON.stringify([...this.notes().filter((n) => n.path !== note.path), note]));
+  }
+
+  // Removes the notes nobody will read: of a ticket that is closed, of a handoff that was cancelled or
+  // started without (the agent asked for it may still write it), and any that is a week old.
+  tidy() {
+    const now = Date.now(), gone = [], kept = [];
+    for (const n of this.notes()) {
+      if (n.dropped) { gone.push(n.path); if (now - n.at < DROPPED_MS) kept.push(n); continue; }
+      // A ticket counts as closed only when the list it would be in was read.
+      const read = n.key.startsWith("github:") ? Boolean(this.github) && !this.error : this.localRead === true;
+      const open = this.sets.find((s) => s.key === n.key)?.tickets.some((t) => t.id === n.id && !t.closed);
+      if (now - n.at > WEEK_MS || (read && !open)) gone.push(n.path); else kept.push(n);
+    }
+    localStorage.setItem("notes", JSON.stringify(kept));
+    if (gone.length) exec("rm", ["-f", ...gone]).catch(() => null);
+    const dir = localStorage.getItem("notesDir");
+    if (dir) exec("find", [dir, "-name", "*.md", "-mtime", "+7", "-delete"]).catch(() => null);
+  }
+
+  // ---------- newly ready ----------
+
+  // A ticket that was blocked at the last read and is ready now is marked "new" for a while, or until it is selected.
+  mark() {
+    const running = this.running(), now = new Map();
+    for (const set of this.sets) for (const [s, list] of this.grouped(set, running)) for (const t of list) now.set(this.refOf(set, t), s);
+    for (const [ref, s] of now) if (s === "ready" && this.statuses?.get(ref) === "blocked") this.fresh.set(ref, Date.now());
+    this.statuses = now;
+  }
+
+  isFresh(ref) {
+    const at = this.fresh.get(ref);
+    if (at && Date.now() - at > FRESH_MS) this.fresh.delete(ref);
+    return this.fresh.has(ref);
   }
 
   // ---------- drawing ----------
@@ -398,8 +453,10 @@ export class Board extends View {
   }
 
   row(t, set, ticket, s, running) {
-    const selected = this.sel === ticket.id, a = running.get(this.refOf(set, ticket)), color = t[this.groups[s].color];
+    const ref = this.refOf(set, ticket), selected = this.sel === ticket.id, a = running.get(ref), color = t[this.groups[s].color];
     const waits = this.waits(set, ticket);
+    if (selected) this.fresh.delete(ref);
+    const fresh = s === "ready" && this.isFresh(ref);
     const note = a ? "" : s === "claimed" ? ticket.assignee : s === "blocked" ? `waits on ${waits.join(" ")}` : "";
     const out = [
       h_flex().id(`row-${ticket.id}`).h(28).flex_none().pr(8).gap(8).items_center().rounded(6).cursor_pointer().when(selected, (el) => el.bg(t.selected)).hover((st) => st.bg(t.hover))
@@ -407,6 +464,7 @@ export class Board extends View {
         .child(div().w(3).h(18).flex_none().rounded(2).bg(color))
         .child(div().flex_none().text_color(t.dim).child(ticket.id))
         .child(div().flex_1().min_w(0).truncate().text_color(s === "blocked" ? t.muted : t.foreground).when(selected, (el) => el.font_semibold()).child(ticket.title))
+        .when(fresh, (el) => el.child(div().flex_none().px(5).rounded(4).bg(t.selected).text_size(10).text_color(t.ansi2).child("new")))
         .children(this.chips(t, ticket, !a && !note))
         .when(Boolean(note), (el) => el.child(div().flex_none().max_w(140).truncate().text_size(11).text_color(t.dim).child(note)))
         .when(Boolean(a), (el) => el.child(div().flex_none().text_size(11).text_color(t[a.status] ?? t.dim).child(WORDS[a.status] ?? "running")).child(this.dot(t, a.status))),
