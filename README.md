@@ -5,7 +5,7 @@ Extensions for [Matt Pocock's skills](https://github.com/mattpocock/skills): for
 | Skill | Folder | herdr mod | Claude Code plugin |
 | --- | --- | --- | --- |
 | `/to-tickets` | [to-tickets](to-tickets) | `tickets` | `ticket-board` |
-| `/wayfinder` | [wayfinder](wayfinder) | planned | `wayfinder-sidebar` |
+| `/wayfinder` | [wayfinder](wayfinder) | `wayfinder` | `wayfinder-sidebar` |
 
 Each folder has its own README.
 
@@ -14,9 +14,10 @@ Each folder has its own README.
 ```
 ./scripts/install-herdr.sh
 herdr-app do pane.split --direction right --mod tickets
+herdr-app do pane.split --direction right --mod wayfinder
 ```
 
-The first line copies the mod into `~/.config/herdr-app/mods/tickets`. See [to-tickets](to-tickets/README.md#the-board-as-a-herdr-pane) for keys, props and where agents open.
+The first line copies both mods into `~/.config/herdr-app/mods`; each of the others puts a board to the right of the focused pane. See [to-tickets](to-tickets/README.md#the-board-as-a-herdr-pane) and [wayfinder](wayfinder/README.md#the-maps-as-a-herdr-pane) for keys, props and where agents open.
 
 ## Claude Code plugins
 

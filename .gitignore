@@ -1,3 +1,3 @@
 # Written by herdr into a mod folder it loads.
-to-tickets/herdr/tickets/gpui-kit.d.ts
-to-tickets/herdr/tickets/jsconfig.json
+*/herdr/*/gpui-kit.d.ts
+*/herdr/*/jsconfig.json
