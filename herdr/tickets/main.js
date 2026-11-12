@@ -6,7 +6,7 @@
 
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { exec, hc, panes, spaces, terminals, agents, props, run, theme, notify, openOverlay, pickFolder, watchFolder, nextCommand, window, home } from "herdr";
+import { exec, hc, panes, spaces, terminals, agents, props, run, theme, notify, openOverlay, pickFolder, watchFolder, nextCommand, window, home, focused } from "herdr";
 import { GROUPS, ISSUES_QUERY, githubSets, localSet, repoOfRemote, statusOf, visibleOrder } from "./tickets.js";
 
 const REFRESH_MS = 300000;
@@ -61,7 +61,14 @@ export default class Tickets extends View {
 
   me() {
     const all = panes();
-    return all.find((p) => p.pane === props()?.pane) ?? all.find((p) => p.mod && p.mod === props()?.mod) ?? all.find((p) => p.mod === "tickets");
+    return all.find((p) => p.pane === props()?.pane) ?? all.find((p) => p.pane === this.pane) ?? all.find((p) => p.mod && p.mod === props()?.mod) ?? all.find((p) => p.mod === "tickets");
+  }
+
+  // herdr does not tell a mod pane which pane it is. Only the boards of the shown tab are drawn, so
+  // while this one is drawn and that tab has one board, that is it. Kept for when it is not drawn.
+  findMe() {
+    const tab = focused()?.tab, here = panes().filter((p) => p.mod === (props()?.mod ?? "tickets") && p.tab === tab);
+    if (here.length === 1) this.pane = here[0].pane;
   }
 
   space() {
@@ -262,6 +269,15 @@ export default class Tickets extends View {
     }
     const wanted = [...running.values()].find((a) => a.address === this.wanted), host = this.host(running);
     if (wanted && host) { run("terminal.show", { terminal: wanted.address, pane: host.pane }); this.remember(wanted.address); this.wanted = null; }
+    // herdr sends "focus" for pane.go only. When the pane beside the board closes, the board becomes
+    // the focused pane without it, so the keyboard is taken here, once per time the focus arrives.
+    const mine = this.me()?.focused === true;
+    if (mine && !this.mine) cx.spawn(async (cx) => {
+      // Asked for while this draws, the keyboard does not come; a second try in case herdr moves it after.
+      for (const ms of [0, 100]) { await cx.sleep(ms); if (!this.handle.is_focused()) this.handle.focus(); }
+      cx.notify();
+    });
+    this.mine = mine;
     const sig = [...running.values()].map((a) => `${a.address}:${a.status === "working"}`).sort().join(",");
     if (this.sig !== undefined && sig !== this.sig) this.refresh(cx, true);
     this.sig = sig;
@@ -337,6 +353,7 @@ export default class Tickets extends View {
 
   render(cx) {
     const t = theme(), set = this.activeSet(), running = this.root ? this.running() : new Map();
+    this.findMe();
     this.follow(running, cx);
     const host = this.host(running);
     const shown = host ? ([...running.values()].find((a) => a.address === this.shown) ?? [...running.values()].find((a) => a.pane?.pane === host.pane))?.address : null;
