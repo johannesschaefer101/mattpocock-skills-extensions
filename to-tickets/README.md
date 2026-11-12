@@ -12,6 +12,31 @@ The `/to-tickets` extension of [mattpocock-skills-extensions](../README.md): the
 
 Wayfinder maps and their tickets are left out: the [wayfinder-sidebar](../wayfinder) shows those.
 
+## Install
+
+At the prompt of a terminal session:
+
+```
+/plugin install ticket-board --marketplace johannesschaefer101/mattpocock-skills-extensions
+```
+
+Answer `y` to add the marketplace, then choose a scope. From a shell:
+
+```
+claude plugin install ticket-board --marketplace johannesschaefer101/mattpocock-skills-extensions
+```
+
+In the desktop app, where `/plugin` does not run: click + next to the prompt box, then Plugins, Add marketplace with `johannesschaefer101/mattpocock-skills-extensions`, then Add plugin.
+
+### Requirements
+
+- **Claude Code 2.1.275 or later** for the one-line install.
+- **The [`to-tickets` and `implement` skills](https://github.com/mattpocock/skills).** `/to-tickets` publishes the tickets the board shows; `/implement <ticket>` is what a ticket is started with. Another command can be named in the [settings](#settings).
+- **The [`gh` CLI](https://cli.github.com), signed in,** for GitHub tickets. Local ticket files are read without it.
+- **macOS with iTerm or Terminal.app** for new tabs. Elsewhere the command is copied to the clipboard.
+- **herdr**, optional, for new panes and for the board as a herdr pane: its window open and `herdr-app` on the `PATH`, on any system.
+- **The [`handoff` skill](https://github.com/mattpocock/skills)**, optional and for the herdr pane only: when it is installed, its rules shape the handoff notes.
+
 ## Using it
 
 The sidebar opens by itself when the project has open tickets; `/tickets` opens it at any time. Select a ticket to see what it waits on and what it unblocks.
@@ -25,6 +50,18 @@ The sidebar opens by itself when the project has open tickets; `/tickets` opens 
 | `r` | refresh |
 
 A blocked ticket is not started in a new tab or pane.
+
+## Settings
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `launcher` | `iterm` | Where new sessions open: `iterm`, `terminal`, `herdr` (a split to the right of the focused pane, which closes when that session ends), or `copy`. A session inside herdr opens a herdr pane while this is `iterm`; `terminal` and `copy` are kept |
+| `refreshSeconds` | `300` | How often GitHub is re-read while the sidebar is open (at least 30) |
+| `implementCommand` | `implement` | The slash command a ticket is started with |
+
+## GitHub usage
+
+One GraphQL request per refresh (5 of the 5,000 points an hour) and no REST calls. All sessions on a repository share one read, polling stops while the sidebar is closed, and the session re-reads only after a `gh` command that changes a ticket. At most 100 open issues per repository are read.
 
 ## The board as a herdr pane
 
@@ -63,36 +100,6 @@ The board stays where it is in both. The row of agents at the top of the board g
 - An agent started from the Claude Code sidebar's "new pane" shows up on the board as well.
 - GitHub is read every five minutes, on refresh, and when an agent stops working; local ticket files when they change.
 - Props, as in `--props '{"folder":"/path/to/project"}'`: `folder` (the project), `command` (the slash command, default `implement`), `argv` (the agent program, default `["claude"]`), `side` (`"left"`: the board moves left of the pane it was split from).
-
-## Install
-
-At the prompt of a terminal session:
-
-```
-/plugin install ticket-board --marketplace johannesschaefer101/mattpocock-skills-extensions
-```
-
-Answer `y` to add the marketplace, then choose a scope. From a shell:
-
-```
-claude plugin install ticket-board --marketplace johannesschaefer101/mattpocock-skills-extensions
-```
-
-In the desktop app, where `/plugin` does not run: click + next to the prompt box, then Plugins, Add marketplace with `johannesschaefer101/mattpocock-skills-extensions`, then Add plugin.
-
-It needs the [`gh` CLI](https://cli.github.com), signed in, for GitHub tickets. New tabs need macOS with iTerm or Terminal.app; elsewhere the command is copied to the clipboard. New panes need herdr with its window open and `herdr-app` on the `PATH`, on any system.
-
-## Settings
-
-| Setting | Default | Meaning |
-| --- | --- | --- |
-| `launcher` | `iterm` | Where new sessions open: `iterm`, `terminal`, `herdr` (a split to the right of the focused pane, which closes when that session ends), or `copy`. A session inside herdr opens a herdr pane while this is `iterm`; `terminal` and `copy` are kept |
-| `refreshSeconds` | `300` | How often GitHub is re-read while the sidebar is open (at least 30) |
-| `implementCommand` | `implement` | The slash command a ticket is started with |
-
-## GitHub usage
-
-One GraphQL request per refresh (5 of the 5,000 points an hour) and no REST calls. All sessions on a repository share one read, polling stops while the sidebar is closed, and the session re-reads only after a `gh` command that changes a ticket. At most 100 open issues per repository are read.
 
 ## Developing
 
