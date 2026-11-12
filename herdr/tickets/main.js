@@ -54,6 +54,11 @@ export default class Tickets extends View {
         cx.notify();
       }
     });
+    // Opened by mod.open as a window, it gets no "focus": herdr leaves the keyboard where it was.
+    if (props()?.overlay) cx.spawn(async (cx) => {
+      for (const ms of [0, 100]) { await cx.sleep(ms); if (!this.handle.is_focused()) this.handle.focus(); }
+      cx.notify();
+    });
     cx.spawn(async (cx) => { await this.locate(); this.refresh(cx, true); this.watch(cx); });
   }
 
