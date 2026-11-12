@@ -1,9 +1,9 @@
 #!/bin/sh
-# Copies the herdr pane (herdr/tickets) into herdr's mods folder, where herdr reloads open boards when a file changes.
+# Copies the herdr pane (to-tickets/herdr/tickets) into herdr's mods folder, where herdr reloads open boards when a file changes.
 # With --watch (macOS), also adds a launchd agent that runs this again whenever one of the files is saved.
 set -e
 cd "$(dirname "$0")/.."
-src=$(pwd)/herdr/tickets
+src=$(pwd)/to-tickets/herdr/tickets
 dest=$HOME/.config/herdr-app/mods/tickets
 files="main.js tickets.js mod.json"
 # herdr does not reload through a symlinked folder, so the mod is a real folder.

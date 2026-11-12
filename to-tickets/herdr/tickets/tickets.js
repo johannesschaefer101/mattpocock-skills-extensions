@@ -1,4 +1,4 @@
-// Generated from hooks/tickets.ts by scripts/build-herdr.sh. Do not edit.
+// Generated from to-tickets/hooks/tickets.ts by scripts/build-herdr.sh. Do not edit.
 export const ISSUES_QUERY = `query($o:String!,$r:String!){repository(owner:$o,name:$r){issues(first:100,states:OPEN,orderBy:{field:CREATED_AT,direction:ASC}){nodes{
 number title url labels(first:20){nodes{name}} assignees(first:3){nodes{login}}
 parent{number title url labels(first:20){nodes{name}} subIssuesSummary{total completed}}

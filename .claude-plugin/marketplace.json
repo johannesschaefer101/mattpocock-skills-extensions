@@ -1,13 +1,18 @@
 {
-  "name": "to-tickets-sidebar",
+  "name": "mattpocock-skills-extensions",
   "owner": {
     "name": "Johannes Schaefer"
   },
   "plugins": [
     {
       "name": "ticket-board",
-      "source": "./",
+      "source": "./to-tickets",
       "description": "A sidebar of the open tickets /to-tickets published: ready, needs you, claimed and blocked, with buttons to open a ticket or start implementing it in this tab or a new one."
+    },
+    {
+      "name": "wayfinder-sidebar",
+      "source": "./wayfinder",
+      "description": "A sidebar of your wayfinder map's tickets, with one-click sessions and handoffs. By Nick Smits, with GitHub maps read over GraphQL."
     }
   ]
 }
