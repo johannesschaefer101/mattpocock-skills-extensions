@@ -1,7 +1,8 @@
 // The open /to-tickets tickets of a project as a pane of its own: what is ready, who works on
 // what and how that agent is doing, with a click to start an agent on a ticket or go to it.
-// Props: { folder?, command?, argv? } (the project; the slash command a ticket is started with,
-// default "implement"; the agent program it is given to, default ["claude"]).
+// Props: { folder?, command?, argv?, side? } (the project; the slash command a ticket is started with,
+// default "implement"; the agent program it is given to, default ["claude"]; "left" to sit left of
+// the pane it was split from).
 // Keys bound to tickets.up, tickets.down, tickets.start and tickets.refresh in keys.json act on it too.
 
 import { View, div } from "gpui-kit";
@@ -74,6 +75,17 @@ export default class Tickets extends View {
   findMe() {
     const tab = focused()?.tab, here = panes().filter((p) => p.mod === (props()?.mod ?? "tickets") && p.tab === tab);
     if (here.length === 1) this.pane = here[0].pane;
+  }
+
+  // pane.split opens to the right or below only: with side "left", the board trades places with the
+  // pane it was split from, once.
+  place() {
+    if (this.placed || props()?.side !== "left") return;
+    // A pane just split in has the focus, which tells it from another board in the tab.
+    const me = this.pane ?? panes().find((p) => p.focused && p.mod === (props()?.mod ?? "tickets"))?.pane;
+    if (!me) return;
+    this.placed = true;
+    run("pane.swap", { pane: me, direction: "left" });
   }
 
   space() {
@@ -359,6 +371,7 @@ export default class Tickets extends View {
   render(cx) {
     const t = theme(), set = this.activeSet(), running = this.root ? this.running() : new Map();
     this.findMe();
+    this.place();
     this.follow(running, cx);
     const host = this.host(running);
     const shown = host ? ([...running.values()].find((a) => a.address === this.shown) ?? [...running.values()].find((a) => a.pane?.pane === host.pane))?.address : null;
