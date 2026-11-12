@@ -143,7 +143,7 @@ Select a ticket and press **start session** (or Enter): `claude '/wayfinder <map
 - **handoff + start session** is there when an agent is at work in the project (with several, it asks which one). That agent is asked to write a handoff note for the ticket, and the session starts when the note is saved, told to read it first. **start without** starts at once, **cancel** drops the note. One ticket at a time.
 - Not in the pane yet: the context bars, and closed tickets.
 
-After a change to `hooks/tracker.ts` or `hooks/launch.ts`, `./scripts/build-herdr.sh` rewrites the pane's copies, `herdr/wayfinder/tracker.js` and `launch.js`.
+After a change to `hooks/tracker.ts` or `hooks/launch.ts`, `./scripts/build-herdr.sh` rewrites the pane's copies, `herdr/wayfinder/tracker.js` and `launch.js`. `herdr/wayfinder/board.js` is a copy too, of `scripts/herdr/board.js`, the pane this board shares with the [ticket board](../to-tickets/README.md#developing): edit that file, not the copy.
 
 ## Trackers
 

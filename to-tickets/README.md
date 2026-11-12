@@ -53,13 +53,12 @@ Select a ticket and press **start agent** (or Enter): `claude '/implement <ticke
 
 | Choice | The agent gets |
 | --- | --- |
-| One pane | one pane beside the board, shared by all agents started this way; the row of agents at the top of the board picks the one it shows |
 | Split | a pane of its own in the board's tab |
 | Tab | a tab of its own, named after the ticket, in the board's space |
 
-The board stays where it is in all three. **show agent** goes to a running agent, **stop** ends it after a question, **open** opens the ticket. Keys while the board has the keyboard: `↑`/`↓` (or `i`/`k`) move, Enter or `n` starts or shows, `o` opens, `r` refreshes, Esc deselects.
+The board stays where it is in both. The row of agents at the top of the board goes to one with a click. **show agent** goes to a running agent, **stop** ends it after a question, **open** opens the ticket. Keys while the board has the keyboard: `↑`/`↓` (or `i`/`k`) move, Enter or `n` starts or shows, `o` opens, `r` refreshes, Esc deselects.
 
-- With One pane, the first agent owns the shared pane and the later ones start as its sub-agents: herdr's own agents list shows them under it, and they keep running when it ends.
+- **handoff + start agent** is there when an agent is at work in the project (with several, it asks which one). That agent is asked to write a handoff note for the ticket, and the session starts when the note is saved, told to read it first. **start without** starts at once, **cancel** drops the note. Notes go in `$TMPDIR/ticket-board-handoffs/`, never in the repository. One ticket at a time.
 - An agent started from the Claude Code sidebar's "new pane" shows up on the board as well.
 - GitHub is read every five minutes, on refresh, and when an agent stops working; local ticket files when they change.
 - Props, as in `--props '{"folder":"/path/to/project"}'`: `folder` (the project), `command` (the slash command, default `implement`), `argv` (the agent program, default `["claude"]`), `side` (`"left"`: the board moves left of the pane it was split from).
@@ -107,14 +106,16 @@ herdr-app check to-tickets/herdr/tickets
 ./scripts/install-herdr.sh --watch   # macOS, once: herdr follows every mod of this checkout from then on
 ```
 
-herdr reloads a mod when a file in `~/.config/herdr-app/mods/<name>` is saved, but not through a symlink to this folder, so the mod there is a copy. `install-herdr.sh` copies every mod it finds under `*/herdr/*/`, this one and the wayfinder one: each mod's `*.js` files and its `mod.json`. With `--watch` it also adds a launchd agent, `ticket-board.herdr-mod`, that copies again whenever one of those files changes in any of the mods: a save, a build, a checkout or a pull reaches open boards within a second or two. A broken save shows under `errors` in `herdr-app status` while the boards keep the last good version.
+herdr reloads a mod when a file in `~/.config/herdr-app/mods/<name>` is saved, but not through a symlink to this folder, so the mod there is a copy. `install-herdr.sh` copies every mod it finds under `*/herdr/*/`, this one and the wayfinder one: each mod's `*.js` files and its `mod.json`. With `--watch` it also adds a launchd agent, `mattpocock-skills-extensions.herdr-mods`, that copies again whenever one of those files changes in any of the mods: a save, a build, a checkout or a pull reaches open boards within a second or two. A broken save shows under `errors` in `herdr-app status` while the boards keep the last good version.
 
-The agent is not part of the repository. It lives in `~/Library/LaunchAgents/ticket-board.herdr-mod.plist`, holds this checkout's path (run the script again if the folder moves) and starts at login. To remove it:
+The agent is not part of the repository. It lives in `~/Library/LaunchAgents/mattpocock-skills-extensions.herdr-mods.plist`, holds this checkout's path (run the script again if the folder moves) and starts at login. To remove it:
 
 ```
-launchctl bootout gui/$(id -u)/ticket-board.herdr-mod
-rm ~/Library/LaunchAgents/ticket-board.herdr-mod.plist
+launchctl bootout gui/$(id -u)/mattpocock-skills-extensions.herdr-mods
+rm ~/Library/LaunchAgents/mattpocock-skills-extensions.herdr-mods.plist
 ```
+
+The pane is two parts. `scripts/herdr/board.js` is what this board and the wayfinder one share: where the pane is, which project it shows, starting, showing and stopping agents, handoff notes, and the drawing. `to-tickets/herdr/tickets/main.js` is what is this board's own: reading the tickets, their groups, and the lines under a selected ticket. A herdr mod is a plain folder of files, so each mod has a copy of the shared file as `board.js`: edit `scripts/herdr/board.js`, never the copies. `build-herdr.sh` and `install-herdr.sh` both write the copies, so with the launchd agent a save of the shared file reaches open boards too.
 
 `herdr-app check` writes `gpui-kit.d.ts` and `jsconfig.json` into the folder it checks; `.gitignore` keeps them out.
 
