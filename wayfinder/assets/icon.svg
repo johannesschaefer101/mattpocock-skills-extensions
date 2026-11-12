@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" rx="224" fill="#0b1020"/>
+  <!-- destination ring -->
+  <circle cx="232" cy="236" r="70" fill="none" stroke="#dbe1ee" stroke-width="22"/>
+  <circle cx="232" cy="236" r="26" fill="#dbe1ee"/>
+  <rect x="340" y="214" width="460" height="44" rx="22" fill="#7c869c"/>
+  <!-- ticket rows: chip + tinted bar -->
+  <g>
+    <rect x="160" y="370" width="150" height="104" rx="22" fill="#ec4899"/>
+    <rect x="326" y="370" width="380" height="104" rx="22" fill="#3a1a2d"/>
+    <rect x="722" y="370" width="142" height="104" rx="22" fill="#2a3550"/>
+    <path d="M770 392 L770 452 L822 422 Z" fill="#22c55e"/>
+  </g>
+  <g>
+    <rect x="160" y="502" width="150" height="104" rx="22" fill="#0b1020" stroke="#f97316" stroke-width="16"/>
+    <rect x="326" y="502" width="538" height="104" rx="22" fill="#3a2212"/>
+  </g>
+  <g>
+    <rect x="160" y="634" width="150" height="104" rx="22" fill="#a855f7"/>
+    <rect x="326" y="634" width="538" height="104" rx="22" fill="#2e1f45"/>
+  </g>
+  <g opacity="0.5">
+    <rect x="160" y="766" width="150" height="104" rx="22" fill="#0b1020" stroke="#3b82f6" stroke-width="16"/>
+    <rect x="326" y="766" width="538" height="104" rx="22" fill="#172745"/>
+  </g>
+</svg>

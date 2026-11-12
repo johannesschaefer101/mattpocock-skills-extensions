@@ -1,0 +1,56 @@
+{
+  "name": "wayfinder-sidebar",
+  "version": "0.1.0",
+  "description": "A sidebar of your wayfinder map's tickets: ready, claimed and blocked, with buttons to open a ticket or start a session on it (optionally with a handoff from this session).",
+  "author": {
+    "name": "Nick Smits",
+    "url": "https://github.com/nicksmits1"
+  },
+  "homepage": "https://github.com/nicksmits1/wayfinder-sidebar",
+  "repository": "https://github.com/nicksmits1/wayfinder-sidebar",
+  "license": "MIT",
+  "keywords": [
+    "wayfinder",
+    "sidebar",
+    "tickets",
+    "mattpocock"
+  ],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "launcher": {
+      "type": "string",
+      "title": "Where new sessions open",
+      "description": "iterm opens a new iTerm tab, terminal a new Terminal.app window (both macOS only), copy puts the command on the clipboard. Other systems always copy.",
+      "options": [
+        "iterm",
+        "terminal",
+        "copy"
+      ],
+      "default": "iterm"
+    },
+    "editor": {
+      "type": "string",
+      "title": "Editor for ticket files",
+      "description": "Command that opens a ticket .md file, for example code, cursor or zed. Empty uses the system opener (open on macOS, xdg-open on Linux).",
+      "default": ""
+    },
+    "pollSeconds": {
+      "type": "number",
+      "title": "Local refresh (seconds)",
+      "description": "How often to check local ticket files for changes made by other sessions.",
+      "default": 3
+    },
+    "githubSeconds": {
+      "type": "number",
+      "title": "GitHub refresh (seconds)",
+      "description": "How often to re-read GitHub maps.",
+      "default": 45
+    },
+    "contextBudget": {
+      "type": "number",
+      "title": "Context budget per session (tokens)",
+      "description": "Where each session's context bar fills up and turns red. One ticket per session, under 200k tokens, is the wayfinder rule of thumb.",
+      "default": 200000
+    }
+  }
+}
