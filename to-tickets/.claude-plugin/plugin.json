@@ -1,6 +1,6 @@
 {
   "name": "ticket-board",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A sidebar of the open tickets /to-tickets published: ready, needs you, claimed and blocked, with buttons to open a ticket or start implementing it in this tab or a new one.",
   "author": {
     "name": "Johannes Schaefer",

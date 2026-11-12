@@ -1,6 +1,6 @@
 {
   "name": "wayfinder-sidebar",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A sidebar of your wayfinder map's tickets: ready, claimed and blocked, with buttons to open a ticket or start a session on it (optionally with a handoff from this session).",
   "author": {
     "name": "Nick Smits",

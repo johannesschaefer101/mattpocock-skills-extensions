@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" rx="224" fill="#0b1020"/>
+  <!-- the parent's progress: a check and a bar, part of it done -->
+  <path d="M168 238 L214 284 L296 190" fill="none" stroke="#dbe1ee" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="340" y="214" width="524" height="44" rx="22" fill="#2a3550"/>
+  <rect x="340" y="214" width="230" height="44" rx="22" fill="#7c869c"/>
+  <!-- ticket rows: a bar in the group's color, the ticket, and for the ready one a start button -->
+  <g>
+    <rect x="160" y="370" width="36" height="104" rx="18" fill="#22c55e"/>
+    <rect x="222" y="370" width="484" height="104" rx="22" fill="#14301f"/>
+    <rect x="722" y="370" width="142" height="104" rx="22" fill="#2a3550"/>
+    <path d="M770 392 L770 452 L822 422 Z" fill="#22c55e"/>
+  </g>
+  <g>
+    <rect x="160" y="502" width="36" height="104" rx="18" fill="#ec4899"/>
+    <rect x="222" y="502" width="642" height="104" rx="22" fill="#3a1a2d"/>
+  </g>
+  <g>
+    <rect x="160" y="634" width="36" height="104" rx="18" fill="#3b82f6"/>
+    <rect x="222" y="634" width="642" height="104" rx="22" fill="#172745"/>
+  </g>
+  <g opacity="0.5">
+    <rect x="160" y="766" width="36" height="104" rx="18" fill="#7c869c"/>
+    <rect x="222" y="766" width="642" height="104" rx="22" fill="#1c2233"/>
+  </g>
+</svg>

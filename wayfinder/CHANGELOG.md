@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.2.0]
+
+The version in [mattpocock-skills-extensions](https://github.com/johannesschaefer101/mattpocock-skills-extensions). It has everything listed under Unreleased below, and:
+
+### Added
+- The maps as a pane of the herdr app (`herdr/wayfinder`): a map's destination and tickets, a click to start a session on a ticket in a split or a tab, with a handoff note from an agent at work in the project, and each agent's status on its ticket's row.
+
+### Changed
+- The plugin is installed from the marketplace `johannesschaefer101/mattpocock-skills-extensions`.
+
 ## [Unreleased]
 
 ### Added

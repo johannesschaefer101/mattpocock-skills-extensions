@@ -6,11 +6,12 @@
 set -e
 cd "$(dirname "$0")/.."
 out=$(mktemp -d)
+# The compiler is pinned: another version may write the same code differently, and CI fails on a difference.
 # build <plugin folder> <mod name> <file>...: the .ts files of the plugin's hooks, compiled into the mod.
 build() {
   plugin=$1 mod=$2; shift 2
   for f in "$@"; do set -- "$@" "$plugin/hooks/$f.ts"; shift; done
-  npx -y -p typescript tsc "$@" --target es2022 --module es2022 --skipLibCheck --ignoreConfig --outDir "$out/$mod"
+  npx -y -p typescript@7.0.2 tsc "$@" --target es2022 --module es2022 --skipLibCheck --ignoreConfig --outDir "$out/$mod"
   for ts in "$@"; do
     f=$(basename "$ts" .ts)
     # A browser-style import needs the file's extension.

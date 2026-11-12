@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Validate
+        run: |
+          claude plugin validate .
+          claude plugin validate to-tickets
+          claude plugin validate wayfinder
+      - name: Test
+        run: |
+          claude plugin test to-tickets
+          claude plugin test wayfinder
+      # The herdr mods hold generated copies of the plugins' logic and of scripts/herdr/board.js.
+      # herdr itself does not run here, so the mods are not loaded.
+      - name: Generated herdr files are current
+        run: |
+          ./scripts/build-herdr.sh
+          git diff --exit-code -- '*/herdr/*'
+          test -z "$(git status --porcelain -- '*/herdr/*')"
